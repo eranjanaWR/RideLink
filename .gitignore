@@ -1,0 +1,35 @@
+# Java
+*.class
+*.jar
+*.war
+*.ear
+*.iml
+
+# Maven build output
+target/
+
+# Spring Boot runtime files
+*.pid
+*.log
+logs/
+
+# Environment files and secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+secrets/
+
+# Editors and IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Operating system files
+.DS_Store
+Thumbs.db
+
