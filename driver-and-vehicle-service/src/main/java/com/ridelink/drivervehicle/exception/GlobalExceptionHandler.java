@@ -5,12 +5,15 @@ import java.util.stream.Collectors;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
-import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.web.method.annotation.HandlerMethodValidationException;
 
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.validation.ConstraintViolationException;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
@@ -35,6 +38,21 @@ public class GlobalExceptionHandler {
                 HttpStatus.BAD_REQUEST,
                 "Request body is malformed or contains an invalid field value",
                 request.getRequestURI());
+    }
+
+    @ExceptionHandler({
+            InvalidServiceAreaException.class,
+            MissingServletRequestParameterException.class,
+            HandlerMethodValidationException.class,
+            ConstraintViolationException.class
+    })
+    public ResponseEntity<ApiErrorResponse> handleInvalidRequestParameter(
+            Exception exception,
+            HttpServletRequest request) {
+        String message = exception instanceof InvalidServiceAreaException
+                ? exception.getMessage()
+                : "serviceArea is required, must not be blank, and must not exceed 100 characters";
+        return buildResponse(HttpStatus.BAD_REQUEST, message, request.getRequestURI());
     }
 
     @ExceptionHandler({
