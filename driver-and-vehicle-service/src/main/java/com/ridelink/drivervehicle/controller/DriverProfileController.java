@@ -14,6 +14,7 @@ import org.springframework.web.bind.annotation.RestController;
 import com.ridelink.drivervehicle.dto.CreateDriverProfileRequest;
 import com.ridelink.drivervehicle.dto.DriverProfileResponse;
 import com.ridelink.drivervehicle.dto.UpdateDriverAvailabilityRequest;
+import com.ridelink.drivervehicle.dto.UpdateDriverLocationRequest;
 import com.ridelink.drivervehicle.dto.UpdateDriverProfileRequest;
 import com.ridelink.drivervehicle.exception.ApiErrorResponse;
 import com.ridelink.drivervehicle.service.DriverProfileService;
@@ -131,5 +132,30 @@ public class DriverProfileController {
             @PathVariable String driverId,
             @Valid @RequestBody UpdateDriverAvailabilityRequest request) {
         return ResponseEntity.ok(service.updateAvailability(driverId, request));
+    }
+
+    @PatchMapping("/{driverId}/location")
+    @Operation(
+            summary = "Update simulated driver location",
+            description = "Updates simulated latitude and longitude for assignment and demonstration purposes only; no live GPS or mapping service is used.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Simulated driver location updated"),
+            @ApiResponse(
+                    responseCode = "400",
+                    description = "Coordinates are missing, malformed, or outside their valid ranges",
+                    content = @Content(schema = @Schema(implementation = ApiErrorResponse.class))),
+            @ApiResponse(
+                    responseCode = "404",
+                    description = "Driver profile not found",
+                    content = @Content(schema = @Schema(implementation = ApiErrorResponse.class))),
+            @ApiResponse(
+                    responseCode = "500",
+                    description = "Unexpected server error",
+                    content = @Content(schema = @Schema(implementation = ApiErrorResponse.class)))
+    })
+    public ResponseEntity<DriverProfileResponse> updateLocation(
+            @PathVariable String driverId,
+            @Valid @RequestBody UpdateDriverLocationRequest request) {
+        return ResponseEntity.ok(service.updateLocation(driverId, request));
     }
 }
