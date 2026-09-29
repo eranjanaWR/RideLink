@@ -26,16 +26,22 @@ public class GlobalExceptionHandler {
         return buildResponse(HttpStatus.BAD_REQUEST, message, request.getRequestURI());
     }
 
-    @ExceptionHandler(DuplicateDriverProfileException.class)
+    @ExceptionHandler({
+            DuplicateDriverProfileException.class,
+            DuplicateVehicleRegistrationException.class
+    })
     public ResponseEntity<ApiErrorResponse> handleDuplicate(
-            DuplicateDriverProfileException exception,
+            RuntimeException exception,
             HttpServletRequest request) {
         return buildResponse(HttpStatus.CONFLICT, exception.getMessage(), request.getRequestURI());
     }
 
-    @ExceptionHandler(DriverProfileNotFoundException.class)
+    @ExceptionHandler({
+            DriverProfileNotFoundException.class,
+            VehicleNotFoundException.class
+    })
     public ResponseEntity<ApiErrorResponse> handleNotFound(
-            DriverProfileNotFoundException exception,
+            RuntimeException exception,
             HttpServletRequest request) {
         return buildResponse(HttpStatus.NOT_FOUND, exception.getMessage(), request.getRequestURI());
     }
