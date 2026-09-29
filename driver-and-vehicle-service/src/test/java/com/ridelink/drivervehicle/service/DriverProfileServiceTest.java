@@ -19,10 +19,12 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import com.ridelink.drivervehicle.dto.CreateDriverProfileRequest;
 import com.ridelink.drivervehicle.dto.DriverProfileResponse;
+import com.ridelink.drivervehicle.dto.UpdateDriverAvailabilityRequest;
 import com.ridelink.drivervehicle.dto.UpdateDriverProfileRequest;
 import com.ridelink.drivervehicle.exception.DriverProfileNotFoundException;
 import com.ridelink.drivervehicle.exception.DuplicateDriverProfileException;
 import com.ridelink.drivervehicle.model.DriverProfile;
+import com.ridelink.drivervehicle.model.DriverAvailabilityStatus;
 import com.ridelink.drivervehicle.repository.DriverProfileRepository;
 
 @ExtendWith(MockitoExtension.class)
@@ -56,6 +58,7 @@ class DriverProfileServiceTest {
         assertThat(response.accountId()).isEqualTo("account-1");
         assertThat(response.licenseNumber()).isEqualTo("LIC-123");
         assertThat(response.serviceArea()).isEqualTo("Colombo");
+        assertThat(response.availabilityStatus()).isEqualTo(DriverAvailabilityStatus.UNAVAILABLE);
         assertThat(savedProfile.getCreatedAt()).isNotNull();
         assertThat(savedProfile.getUpdatedAt()).isEqualTo(savedProfile.getCreatedAt());
     }
@@ -95,6 +98,7 @@ class DriverProfileServiceTest {
     @Test
     void updateChangesOnlyEditableFields() {
         DriverProfile profile = profile();
+        profile.setAvailabilityStatus(DriverAvailabilityStatus.AVAILABLE);
         LocalDateTime originalUpdatedAt = profile.getUpdatedAt();
         when(repository.findById("driver-1")).thenReturn(Optional.of(profile));
         when(repository.save(profile)).thenReturn(profile);
@@ -107,8 +111,79 @@ class DriverProfileServiceTest {
         assertThat(response.accountId()).isEqualTo("account-1");
         assertThat(response.licenseNumber()).isEqualTo("LIC-999");
         assertThat(response.serviceArea()).isEqualTo("Kandy");
+        assertThat(response.availabilityStatus()).isEqualTo(DriverAvailabilityStatus.AVAILABLE);
         assertThat(response.updatedAt()).isAfterOrEqualTo(originalUpdatedAt);
         verify(repository).save(profile);
+    }
+
+    @Test
+    void createDefaultsAvailabilityToUnavailable() {
+        CreateDriverProfileRequest request = new CreateDriverProfileRequest(
+                "account-1", "LIC-123", "Colombo");
+        when(repository.existsByAccountId("account-1")).thenReturn(false);
+        when(repository.save(any(DriverProfile.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        DriverProfileResponse response = service.create(request);
+
+        assertThat(response.availabilityStatus()).isEqualTo(DriverAvailabilityStatus.UNAVAILABLE);
+    }
+
+    @Test
+    void updateAvailabilityChangesUnavailableToAvailable() {
+        DriverProfile profile = profile();
+        LocalDateTime originalUpdatedAt = profile.getUpdatedAt();
+        when(repository.findById("driver-1")).thenReturn(Optional.of(profile));
+        when(repository.save(profile)).thenReturn(profile);
+
+        DriverProfileResponse response = service.updateAvailability(
+                "driver-1",
+                new UpdateDriverAvailabilityRequest(DriverAvailabilityStatus.AVAILABLE));
+
+        assertThat(response.availabilityStatus()).isEqualTo(DriverAvailabilityStatus.AVAILABLE);
+        assertThat(response.accountId()).isEqualTo("account-1");
+        assertThat(response.licenseNumber()).isEqualTo("LIC-123");
+        assertThat(response.serviceArea()).isEqualTo("Colombo");
+        assertThat(response.updatedAt()).isAfter(originalUpdatedAt);
+        verify(repository).save(profile);
+    }
+
+    @Test
+    void updateAvailabilityChangesAvailableToUnavailable() {
+        DriverProfile profile = profile();
+        profile.setAvailabilityStatus(DriverAvailabilityStatus.AVAILABLE);
+        when(repository.findById("driver-1")).thenReturn(Optional.of(profile));
+        when(repository.save(profile)).thenReturn(profile);
+
+        DriverProfileResponse response = service.updateAvailability(
+                "driver-1",
+                new UpdateDriverAvailabilityRequest(DriverAvailabilityStatus.UNAVAILABLE));
+
+        assertThat(response.availabilityStatus()).isEqualTo(DriverAvailabilityStatus.UNAVAILABLE);
+        verify(repository).save(profile);
+    }
+
+    @Test
+    void updateAvailabilityThrowsWhenDriverDoesNotExist() {
+        when(repository.findById("missing")).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> service.updateAvailability(
+                "missing",
+                new UpdateDriverAvailabilityRequest(DriverAvailabilityStatus.AVAILABLE)))
+                .isInstanceOf(DriverProfileNotFoundException.class)
+                .hasMessageContaining("missing");
+        verify(repository, never()).save(any());
+    }
+
+    @Test
+    void getByIdTreatsLegacyNullAvailabilityAsUnavailable() {
+        DriverProfile profile = profile();
+        profile.setAvailabilityStatus(null);
+        when(repository.findById("driver-1")).thenReturn(Optional.of(profile));
+
+        DriverProfileResponse response = service.getById("driver-1");
+
+        assertThat(response.availabilityStatus()).isEqualTo(DriverAvailabilityStatus.UNAVAILABLE);
     }
 
     private DriverProfile profile() {

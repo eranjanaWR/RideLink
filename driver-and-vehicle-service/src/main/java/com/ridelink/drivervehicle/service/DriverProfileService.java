@@ -8,6 +8,7 @@ import org.springframework.stereotype.Service;
 
 import com.ridelink.drivervehicle.dto.CreateDriverProfileRequest;
 import com.ridelink.drivervehicle.dto.DriverProfileResponse;
+import com.ridelink.drivervehicle.dto.UpdateDriverAvailabilityRequest;
 import com.ridelink.drivervehicle.dto.UpdateDriverProfileRequest;
 import com.ridelink.drivervehicle.exception.DriverProfileNotFoundException;
 import com.ridelink.drivervehicle.exception.DuplicateDriverProfileException;
@@ -70,12 +71,26 @@ public class DriverProfileService {
         return toResponse(repository.save(profile));
     }
 
+    public DriverProfileResponse updateAvailability(
+            String driverId,
+            UpdateDriverAvailabilityRequest request) {
+        DriverProfile profile = repository.findById(driverId)
+                .orElseThrow(() -> new DriverProfileNotFoundException(
+                        "Driver profile not found with id: " + driverId));
+
+        profile.setAvailabilityStatus(request.availabilityStatus());
+        profile.setUpdatedAt(LocalDateTime.now());
+
+        return toResponse(repository.save(profile));
+    }
+
     private DriverProfileResponse toResponse(DriverProfile profile) {
         return new DriverProfileResponse(
                 profile.getId(),
                 profile.getAccountId(),
                 profile.getLicenseNumber(),
                 profile.getServiceArea(),
+                profile.getAvailabilityStatus(),
                 profile.getCreatedAt(),
                 profile.getUpdatedAt());
     }

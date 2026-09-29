@@ -8,6 +8,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 
 import jakarta.servlet.http.HttpServletRequest;
 
@@ -24,6 +25,16 @@ public class GlobalExceptionHandler {
                 .collect(Collectors.joining(", "));
 
         return buildResponse(HttpStatus.BAD_REQUEST, message, request.getRequestURI());
+    }
+
+    @ExceptionHandler(HttpMessageNotReadableException.class)
+    public ResponseEntity<ApiErrorResponse> handleUnreadableRequest(
+            HttpMessageNotReadableException exception,
+            HttpServletRequest request) {
+        return buildResponse(
+                HttpStatus.BAD_REQUEST,
+                "Request body is malformed or contains an invalid field value",
+                request.getRequestURI());
     }
 
     @ExceptionHandler({

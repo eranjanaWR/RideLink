@@ -17,6 +17,7 @@ public class DriverProfile {
 
     private String licenseNumber;
     private String serviceArea;
+    private DriverAvailabilityStatus availabilityStatus = DriverAvailabilityStatus.UNAVAILABLE;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 
@@ -68,6 +69,16 @@ public class DriverProfile {
 
     public void setServiceArea(String serviceArea) {
         this.serviceArea = serviceArea;
+    }
+
+    public DriverAvailabilityStatus getAvailabilityStatus() {
+        return availabilityStatus == null
+                ? DriverAvailabilityStatus.UNAVAILABLE
+                : availabilityStatus;
+    }
+
+    public void setAvailabilityStatus(DriverAvailabilityStatus availabilityStatus) {
+        this.availabilityStatus = availabilityStatus;
     }
 
     public LocalDateTime getCreatedAt() {

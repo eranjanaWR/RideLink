@@ -4,6 +4,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -12,6 +13,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.ridelink.drivervehicle.dto.CreateDriverProfileRequest;
 import com.ridelink.drivervehicle.dto.DriverProfileResponse;
+import com.ridelink.drivervehicle.dto.UpdateDriverAvailabilityRequest;
 import com.ridelink.drivervehicle.dto.UpdateDriverProfileRequest;
 import com.ridelink.drivervehicle.exception.ApiErrorResponse;
 import com.ridelink.drivervehicle.service.DriverProfileService;
@@ -104,5 +106,30 @@ public class DriverProfileController {
             @PathVariable String driverId,
             @Valid @RequestBody UpdateDriverProfileRequest request) {
         return ResponseEntity.ok(service.update(driverId, request));
+    }
+
+    @PatchMapping("/{driverId}/availability")
+    @Operation(
+            summary = "Update driver availability",
+            description = "Sets an existing driver profile to AVAILABLE or UNAVAILABLE without changing other profile details.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Driver availability updated"),
+            @ApiResponse(
+                    responseCode = "400",
+                    description = "Availability status is missing or invalid",
+                    content = @Content(schema = @Schema(implementation = ApiErrorResponse.class))),
+            @ApiResponse(
+                    responseCode = "404",
+                    description = "Driver profile not found",
+                    content = @Content(schema = @Schema(implementation = ApiErrorResponse.class))),
+            @ApiResponse(
+                    responseCode = "500",
+                    description = "Unexpected server error",
+                    content = @Content(schema = @Schema(implementation = ApiErrorResponse.class)))
+    })
+    public ResponseEntity<DriverProfileResponse> updateAvailability(
+            @PathVariable String driverId,
+            @Valid @RequestBody UpdateDriverAvailabilityRequest request) {
+        return ResponseEntity.ok(service.updateAvailability(driverId, request));
     }
 }

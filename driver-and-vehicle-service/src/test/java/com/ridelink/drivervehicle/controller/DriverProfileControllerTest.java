@@ -4,6 +4,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -19,7 +20,9 @@ import org.springframework.test.web.servlet.MockMvc;
 
 import com.ridelink.drivervehicle.dto.CreateDriverProfileRequest;
 import com.ridelink.drivervehicle.dto.DriverProfileResponse;
+import com.ridelink.drivervehicle.dto.UpdateDriverAvailabilityRequest;
 import com.ridelink.drivervehicle.exception.DriverProfileNotFoundException;
+import com.ridelink.drivervehicle.model.DriverAvailabilityStatus;
 import com.ridelink.drivervehicle.service.DriverProfileService;
 
 @WebMvcTest(DriverProfileController.class)
@@ -35,7 +38,8 @@ class DriverProfileControllerTest {
     void createReturnsCreated() throws Exception {
         LocalDateTime now = LocalDateTime.now();
         DriverProfileResponse response = new DriverProfileResponse(
-                "driver-1", "account-1", "LIC-123", "Colombo", now, now);
+                "driver-1", "account-1", "LIC-123", "Colombo",
+                DriverAvailabilityStatus.UNAVAILABLE, now, now);
         when(service.create(any(CreateDriverProfileRequest.class))).thenReturn(response);
 
         mockMvc.perform(post("/api/drivers")
@@ -75,7 +79,8 @@ class DriverProfileControllerTest {
     void getByIdReturnsOk() throws Exception {
         LocalDateTime now = LocalDateTime.now();
         when(service.getById("driver-1")).thenReturn(new DriverProfileResponse(
-                "driver-1", "account-1", "LIC-123", "Colombo", now, now));
+                "driver-1", "account-1", "LIC-123", "Colombo",
+                DriverAvailabilityStatus.UNAVAILABLE, now, now));
 
         mockMvc.perform(get("/api/drivers/driver-1"))
                 .andExpect(status().isOk())
@@ -93,5 +98,80 @@ class DriverProfileControllerTest {
                 .andExpect(jsonPath("$.status").value(404))
                 .andExpect(jsonPath("$.error").value("Not Found"))
                 .andExpect(jsonPath("$.path").value("/api/drivers/missing"));
+    }
+
+    @Test
+    void updateAvailabilityReturnsOk() throws Exception {
+        LocalDateTime now = LocalDateTime.now();
+        when(service.updateAvailability(
+                "driver-1",
+                new UpdateDriverAvailabilityRequest(DriverAvailabilityStatus.AVAILABLE)))
+                .thenReturn(new DriverProfileResponse(
+                        "driver-1",
+                        "account-1",
+                        "LIC-123",
+                        "Colombo",
+                        DriverAvailabilityStatus.AVAILABLE,
+                        now,
+                        now));
+
+        mockMvc.perform(patch("/api/drivers/driver-1/availability")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "availabilityStatus": "AVAILABLE"
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value("driver-1"))
+                .andExpect(jsonPath("$.availabilityStatus").value("AVAILABLE"));
+    }
+
+    @Test
+    void updateAvailabilityReturnsBadRequestWhenStatusIsMissing() throws Exception {
+        mockMvc.perform(patch("/api/drivers/driver-1/availability")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.status").value(400))
+                .andExpect(jsonPath("$.error").value("Bad Request"))
+                .andExpect(jsonPath("$.message").value("availabilityStatus: availabilityStatus is required"))
+                .andExpect(jsonPath("$.path").value("/api/drivers/driver-1/availability"));
+    }
+
+    @Test
+    void updateAvailabilityReturnsBadRequestWhenStatusIsInvalid() throws Exception {
+        mockMvc.perform(patch("/api/drivers/driver-1/availability")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "availabilityStatus": "BUSY"
+                                }
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.status").value(400))
+                .andExpect(jsonPath("$.error").value("Bad Request"))
+                .andExpect(jsonPath("$.path").value("/api/drivers/driver-1/availability"));
+    }
+
+    @Test
+    void updateAvailabilityReturnsNotFoundWhenDriverDoesNotExist() throws Exception {
+        when(service.updateAvailability(
+                "missing",
+                new UpdateDriverAvailabilityRequest(DriverAvailabilityStatus.AVAILABLE)))
+                .thenThrow(new DriverProfileNotFoundException(
+                        "Driver profile not found with id: missing"));
+
+        mockMvc.perform(patch("/api/drivers/missing/availability")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "availabilityStatus": "AVAILABLE"
+                                }
+                                """))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.status").value(404))
+                .andExpect(jsonPath("$.error").value("Not Found"))
+                .andExpect(jsonPath("$.path").value("/api/drivers/missing/availability"));
     }
 }
