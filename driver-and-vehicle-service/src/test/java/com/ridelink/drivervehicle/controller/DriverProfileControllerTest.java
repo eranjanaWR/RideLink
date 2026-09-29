@@ -21,6 +21,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import com.ridelink.drivervehicle.dto.CreateDriverProfileRequest;
 import com.ridelink.drivervehicle.dto.DriverProfileResponse;
 import com.ridelink.drivervehicle.dto.UpdateDriverAvailabilityRequest;
+import com.ridelink.drivervehicle.dto.UpdateDriverLocationRequest;
 import com.ridelink.drivervehicle.exception.DriverProfileNotFoundException;
 import com.ridelink.drivervehicle.model.DriverAvailabilityStatus;
 import com.ridelink.drivervehicle.service.DriverProfileService;
@@ -39,7 +40,7 @@ class DriverProfileControllerTest {
         LocalDateTime now = LocalDateTime.now();
         DriverProfileResponse response = new DriverProfileResponse(
                 "driver-1", "account-1", "LIC-123", "Colombo",
-                DriverAvailabilityStatus.UNAVAILABLE, now, now);
+                DriverAvailabilityStatus.UNAVAILABLE, null, null, null, now, now);
         when(service.create(any(CreateDriverProfileRequest.class))).thenReturn(response);
 
         mockMvc.perform(post("/api/drivers")
@@ -80,7 +81,7 @@ class DriverProfileControllerTest {
         LocalDateTime now = LocalDateTime.now();
         when(service.getById("driver-1")).thenReturn(new DriverProfileResponse(
                 "driver-1", "account-1", "LIC-123", "Colombo",
-                DriverAvailabilityStatus.UNAVAILABLE, now, now));
+                DriverAvailabilityStatus.UNAVAILABLE, null, null, null, now, now));
 
         mockMvc.perform(get("/api/drivers/driver-1"))
                 .andExpect(status().isOk())
@@ -112,6 +113,9 @@ class DriverProfileControllerTest {
                         "LIC-123",
                         "Colombo",
                         DriverAvailabilityStatus.AVAILABLE,
+                        null,
+                        null,
+                        null,
                         now,
                         now));
 
@@ -173,5 +177,142 @@ class DriverProfileControllerTest {
                 .andExpect(jsonPath("$.status").value(404))
                 .andExpect(jsonPath("$.error").value("Not Found"))
                 .andExpect(jsonPath("$.path").value("/api/drivers/missing/availability"));
+    }
+
+    @Test
+    void updateLocationReturnsOk() throws Exception {
+        LocalDateTime now = LocalDateTime.now();
+        when(service.updateLocation(
+                "driver-1",
+                new UpdateDriverLocationRequest(6.9271, 79.8612)))
+                .thenReturn(locationResponse(now));
+
+        mockMvc.perform(patch("/api/drivers/driver-1/location")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(validLocationRequest()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value("driver-1"))
+                .andExpect(jsonPath("$.latitude").value(6.9271))
+                .andExpect(jsonPath("$.longitude").value(79.8612))
+                .andExpect(jsonPath("$.locationUpdatedAt").exists());
+    }
+
+    @Test
+    void updateLocationReturnsBadRequestWhenLatitudeIsBelowMinimum() throws Exception {
+        assertInvalidLocation("""
+                {
+                  "latitude": -90.1,
+                  "longitude": 79.8612
+                }
+                """);
+    }
+
+    @Test
+    void updateLocationReturnsBadRequestWhenLatitudeIsAboveMaximum() throws Exception {
+        assertInvalidLocation("""
+                {
+                  "latitude": 90.1,
+                  "longitude": 79.8612
+                }
+                """);
+    }
+
+    @Test
+    void updateLocationReturnsBadRequestWhenLongitudeIsBelowMinimum() throws Exception {
+        assertInvalidLocation("""
+                {
+                  "latitude": 6.9271,
+                  "longitude": -180.1
+                }
+                """);
+    }
+
+    @Test
+    void updateLocationReturnsBadRequestWhenLongitudeIsAboveMaximum() throws Exception {
+        assertInvalidLocation("""
+                {
+                  "latitude": 6.9271,
+                  "longitude": 180.1
+                }
+                """);
+    }
+
+    @Test
+    void updateLocationReturnsBadRequestWhenLatitudeIsMissing() throws Exception {
+        assertInvalidLocation("""
+                {
+                  "longitude": 79.8612
+                }
+                """);
+    }
+
+    @Test
+    void updateLocationReturnsBadRequestWhenLongitudeIsMissing() throws Exception {
+        assertInvalidLocation("""
+                {
+                  "latitude": 6.9271
+                }
+                """);
+    }
+
+    @Test
+    void updateLocationReturnsBadRequestForMalformedNumericJson() throws Exception {
+        assertInvalidLocation("""
+                {
+                  "latitude": "north",
+                  "longitude": 79.8612
+                }
+                """);
+    }
+
+    @Test
+    void updateLocationReturnsNotFoundWhenDriverDoesNotExist() throws Exception {
+        when(service.updateLocation(
+                "missing",
+                new UpdateDriverLocationRequest(6.9271, 79.8612)))
+                .thenThrow(new DriverProfileNotFoundException(
+                        "Driver profile not found with id: missing"));
+
+        mockMvc.perform(patch("/api/drivers/missing/location")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(validLocationRequest()))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.status").value(404))
+                .andExpect(jsonPath("$.error").value("Not Found"))
+                .andExpect(jsonPath("$.path").value("/api/drivers/missing/location"));
+    }
+
+    private void assertInvalidLocation(String requestBody) throws Exception {
+        mockMvc.perform(patch("/api/drivers/driver-1/location")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(requestBody))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.status").value(400))
+                .andExpect(jsonPath("$.error").value("Bad Request"))
+                .andExpect(jsonPath("$.message").isNotEmpty())
+                .andExpect(jsonPath("$.path").value("/api/drivers/driver-1/location"));
+    }
+
+    private DriverProfileResponse locationResponse(LocalDateTime now) {
+        return new DriverProfileResponse(
+                "driver-1",
+                "account-1",
+                "LIC-123",
+                "Colombo",
+                DriverAvailabilityStatus.AVAILABLE,
+                6.9271,
+                79.8612,
+                now,
+                now.minusDays(1),
+                now);
+    }
+
+    private String validLocationRequest() {
+        return """
+                {
+                  "latitude": 6.9271,
+                  "longitude": 79.8612
+                }
+                """;
     }
 }

@@ -10,6 +10,9 @@ public record DriverProfileResponse(
         String licenseNumber,
         String serviceArea,
         DriverAvailabilityStatus availabilityStatus,
+        Double latitude,
+        Double longitude,
+        LocalDateTime locationUpdatedAt,
         LocalDateTime createdAt,
         LocalDateTime updatedAt) {
 }

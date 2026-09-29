@@ -20,6 +20,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import com.ridelink.drivervehicle.dto.CreateDriverProfileRequest;
 import com.ridelink.drivervehicle.dto.DriverProfileResponse;
 import com.ridelink.drivervehicle.dto.UpdateDriverAvailabilityRequest;
+import com.ridelink.drivervehicle.dto.UpdateDriverLocationRequest;
 import com.ridelink.drivervehicle.dto.UpdateDriverProfileRequest;
 import com.ridelink.drivervehicle.exception.DriverProfileNotFoundException;
 import com.ridelink.drivervehicle.exception.DuplicateDriverProfileException;
@@ -99,7 +100,11 @@ class DriverProfileServiceTest {
     void updateChangesOnlyEditableFields() {
         DriverProfile profile = profile();
         profile.setAvailabilityStatus(DriverAvailabilityStatus.AVAILABLE);
+        profile.setLatitude(6.9271);
+        profile.setLongitude(79.8612);
+        profile.setLocationUpdatedAt(LocalDateTime.now().minusHours(1));
         LocalDateTime originalUpdatedAt = profile.getUpdatedAt();
+        LocalDateTime originalLocationUpdatedAt = profile.getLocationUpdatedAt();
         when(repository.findById("driver-1")).thenReturn(Optional.of(profile));
         when(repository.save(profile)).thenReturn(profile);
 
@@ -112,6 +117,9 @@ class DriverProfileServiceTest {
         assertThat(response.licenseNumber()).isEqualTo("LIC-999");
         assertThat(response.serviceArea()).isEqualTo("Kandy");
         assertThat(response.availabilityStatus()).isEqualTo(DriverAvailabilityStatus.AVAILABLE);
+        assertThat(response.latitude()).isEqualTo(6.9271);
+        assertThat(response.longitude()).isEqualTo(79.8612);
+        assertThat(response.locationUpdatedAt()).isEqualTo(originalLocationUpdatedAt);
         assertThat(response.updatedAt()).isAfterOrEqualTo(originalUpdatedAt);
         verify(repository).save(profile);
     }
@@ -184,6 +192,55 @@ class DriverProfileServiceTest {
         DriverProfileResponse response = service.getById("driver-1");
 
         assertThat(response.availabilityStatus()).isEqualTo(DriverAvailabilityStatus.UNAVAILABLE);
+    }
+
+    @Test
+    void updateLocationUpdatesCoordinatesAndTimestampsWithoutChangingOtherFields() {
+        DriverProfile profile = profile();
+        profile.setAvailabilityStatus(DriverAvailabilityStatus.AVAILABLE);
+        LocalDateTime originalUpdatedAt = profile.getUpdatedAt();
+        when(repository.findById("driver-1")).thenReturn(Optional.of(profile));
+        when(repository.save(profile)).thenReturn(profile);
+
+        DriverProfileResponse response = service.updateLocation(
+                "driver-1",
+                new UpdateDriverLocationRequest(6.9271, 79.8612));
+
+        assertThat(response.latitude()).isEqualTo(6.9271);
+        assertThat(response.longitude()).isEqualTo(79.8612);
+        assertThat(response.locationUpdatedAt()).isNotNull();
+        assertThat(response.updatedAt()).isAfter(originalUpdatedAt);
+        assertThat(response.updatedAt()).isEqualTo(response.locationUpdatedAt());
+        assertThat(response.id()).isEqualTo("driver-1");
+        assertThat(response.accountId()).isEqualTo("account-1");
+        assertThat(response.licenseNumber()).isEqualTo("LIC-123");
+        assertThat(response.serviceArea()).isEqualTo("Colombo");
+        assertThat(response.availabilityStatus()).isEqualTo(DriverAvailabilityStatus.AVAILABLE);
+        verify(repository).save(profile);
+    }
+
+    @Test
+    void updateLocationThrowsWhenDriverDoesNotExist() {
+        when(repository.findById("missing")).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> service.updateLocation(
+                "missing",
+                new UpdateDriverLocationRequest(6.9271, 79.8612)))
+                .isInstanceOf(DriverProfileNotFoundException.class)
+                .hasMessageContaining("missing");
+        verify(repository, never()).save(any());
+    }
+
+    @Test
+    void getByIdSafelyReturnsNullLegacyLocationFields() {
+        DriverProfile profile = profile();
+        when(repository.findById("driver-1")).thenReturn(Optional.of(profile));
+
+        DriverProfileResponse response = service.getById("driver-1");
+
+        assertThat(response.latitude()).isNull();
+        assertThat(response.longitude()).isNull();
+        assertThat(response.locationUpdatedAt()).isNull();
     }
 
     private DriverProfile profile() {
