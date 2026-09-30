@@ -251,6 +251,7 @@ class RideServiceTest {
         assertThat(response.assignedAt()).isBetween(before, after);
         assertThat(response.updatedAt()).isEqualTo(response.assignedAt());
         verify(driverServiceClient).getEligibleDrivers("Colombo");
+        verify(driverServiceClient).markDriverUnavailable("driver-2");
         verify(rideRepository).save(ride);
     }
 
@@ -292,6 +293,7 @@ class RideServiceTest {
         assertThatThrownBy(() -> rideService.assignDriver("ride-1"))
                 .isInstanceOf(NoEligibleDriverException.class)
                 .hasMessageContaining("Colombo");
+        verify(driverServiceClient, never()).markDriverUnavailable(any());
         verify(rideRepository, never()).save(any());
     }
 
@@ -341,6 +343,7 @@ class RideServiceTest {
 
         assertThatThrownBy(() -> rideService.assignDriver("ride-1"))
                 .isInstanceOf(InvalidDriverServiceResponseException.class);
+        verify(driverServiceClient, never()).markDriverUnavailable(any());
         verify(rideRepository, never()).save(any());
     }
 
@@ -352,6 +355,7 @@ class RideServiceTest {
 
         assertThatThrownBy(() -> rideService.assignDriver("ride-1"))
                 .isInstanceOf(InvalidDriverServiceResponseException.class);
+        verify(driverServiceClient, never()).markDriverUnavailable(any());
         verify(rideRepository, never()).save(any());
     }
 
