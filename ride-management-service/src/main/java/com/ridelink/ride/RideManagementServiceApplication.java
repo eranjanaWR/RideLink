@@ -10,8 +10,8 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
         info = @Info(
                 title = "RideLink Ride Management API",
                 version = "v1",
-                description = "Creates and retrieves ride requests and assigns eligible drivers through the Driver & "
-                        + "Vehicle Service. Fare calculation and driver availability updates are not part of this feature."
+                description = "Creates, retrieves, assigns, and manages the lifecycle of ride requests. Fare and payment "
+                        + "processing and driver availability synchronization are not part of this feature."
         )
 )
 public class RideManagementServiceApplication {
