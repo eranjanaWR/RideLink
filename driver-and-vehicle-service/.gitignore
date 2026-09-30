@@ -1,0 +1,5 @@
+# Local environment and Spring configuration files may contain secrets.
+.env
+.env.*
+application-local.yml
+application-local.yaml
