@@ -23,7 +23,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 @RequestMapping("/api/rides")
-@Tag(name = "Rides", description = "Create and retrieve RideLink ride requests")
+@Tag(name = "Rides", description = "Create, retrieve, assign, and manage the lifecycle of RideLink rides")
 public class RideController {
 
     private final RideService rideService;
@@ -84,6 +84,99 @@ public class RideController {
     })
     public ResponseEntity<RideResponse> assignDriver(@PathVariable String rideId) {
         return ResponseEntity.ok(rideService.assignDriver(rideId));
+    }
+
+    @PostMapping("/{rideId}/accept")
+    @Operation(
+            summary = "Accept an assigned ride",
+            description = "Transitions a ride from ASSIGNED to ACCEPTED. Driver availability synchronization is "
+                    + "outside this feature."
+    )
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Ride accepted"),
+            @ApiResponse(
+                    responseCode = "404",
+                    description = "Ride not found",
+                    content = @Content(schema = @Schema(implementation = ApiErrorResponse.class))
+            ),
+            @ApiResponse(
+                    responseCode = "409",
+                    description = "Ride is not ASSIGNED or has no assigned driver",
+                    content = @Content(schema = @Schema(implementation = ApiErrorResponse.class))
+            )
+    })
+    public ResponseEntity<RideResponse> acceptRide(@PathVariable String rideId) {
+        return ResponseEntity.ok(rideService.acceptRide(rideId));
+    }
+
+    @PostMapping("/{rideId}/start")
+    @Operation(
+            summary = "Start an accepted ride",
+            description = "Transitions a ride from ACCEPTED to IN_PROGRESS. Driver availability synchronization is "
+                    + "outside this feature."
+    )
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Ride started"),
+            @ApiResponse(
+                    responseCode = "404",
+                    description = "Ride not found",
+                    content = @Content(schema = @Schema(implementation = ApiErrorResponse.class))
+            ),
+            @ApiResponse(
+                    responseCode = "409",
+                    description = "Ride is not ACCEPTED",
+                    content = @Content(schema = @Schema(implementation = ApiErrorResponse.class))
+            )
+    })
+    public ResponseEntity<RideResponse> startRide(@PathVariable String rideId) {
+        return ResponseEntity.ok(rideService.startRide(rideId));
+    }
+
+    @PostMapping("/{rideId}/complete")
+    @Operation(
+            summary = "Complete an in-progress ride",
+            description = "Transitions a ride from IN_PROGRESS to COMPLETED. Completion does not calculate a final "
+                    + "fare, process payment, or synchronize driver availability."
+    )
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Ride completed"),
+            @ApiResponse(
+                    responseCode = "404",
+                    description = "Ride not found",
+                    content = @Content(schema = @Schema(implementation = ApiErrorResponse.class))
+            ),
+            @ApiResponse(
+                    responseCode = "409",
+                    description = "Ride is not IN_PROGRESS",
+                    content = @Content(schema = @Schema(implementation = ApiErrorResponse.class))
+            )
+    })
+    public ResponseEntity<RideResponse> completeRide(@PathVariable String rideId) {
+        return ResponseEntity.ok(rideService.completeRide(rideId));
+    }
+
+    @PostMapping("/{rideId}/cancel")
+    @Operation(
+            summary = "Cancel a ride",
+            description = "Transitions REQUESTED, ASSIGNED, or ACCEPTED rides to CANCELLED. Cancellation preserves "
+                    + "the assigned driver and earlier lifecycle timestamps. Driver availability synchronization is "
+                    + "outside this feature."
+    )
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Ride cancelled"),
+            @ApiResponse(
+                    responseCode = "404",
+                    description = "Ride not found",
+                    content = @Content(schema = @Schema(implementation = ApiErrorResponse.class))
+            ),
+            @ApiResponse(
+                    responseCode = "409",
+                    description = "Ride cannot be cancelled from its current state",
+                    content = @Content(schema = @Schema(implementation = ApiErrorResponse.class))
+            )
+    })
+    public ResponseEntity<RideResponse> cancelRide(@PathVariable String rideId) {
+        return ResponseEntity.ok(rideService.cancelRide(rideId));
     }
 
     @GetMapping("/{rideId}")

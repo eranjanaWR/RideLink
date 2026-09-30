@@ -118,6 +118,71 @@ public class RideService {
         return toResponse(rideRepository.save(ride));
     }
 
+    public RideResponse acceptRide(String rideId) {
+        Ride ride = findRide(rideId);
+        if (ride.getStatus() != RideStatus.ASSIGNED) {
+            throw new InvalidRideStateException("Ride must be ASSIGNED before it can be accepted");
+        }
+        if (ride.getDriverId() == null || ride.getDriverId().isBlank()) {
+            throw new InvalidRideStateException("Ride must have an assigned driver before it can be accepted");
+        }
+
+        LocalDateTime now = LocalDateTime.now();
+        ride.setStatus(RideStatus.ACCEPTED);
+        ride.setAcceptedAt(now);
+        ride.setUpdatedAt(now);
+        return toResponse(rideRepository.save(ride));
+    }
+
+    public RideResponse startRide(String rideId) {
+        Ride ride = findRide(rideId);
+        if (ride.getStatus() != RideStatus.ACCEPTED) {
+            throw new InvalidRideStateException("Ride must be ACCEPTED before it can be started");
+        }
+
+        LocalDateTime now = LocalDateTime.now();
+        ride.setStatus(RideStatus.IN_PROGRESS);
+        ride.setStartedAt(now);
+        ride.setUpdatedAt(now);
+        return toResponse(rideRepository.save(ride));
+    }
+
+    public RideResponse completeRide(String rideId) {
+        Ride ride = findRide(rideId);
+        if (ride.getStatus() != RideStatus.IN_PROGRESS) {
+            throw new InvalidRideStateException("Ride must be IN_PROGRESS before it can be completed");
+        }
+
+        LocalDateTime now = LocalDateTime.now();
+        ride.setStatus(RideStatus.COMPLETED);
+        ride.setCompletedAt(now);
+        ride.setUpdatedAt(now);
+        return toResponse(rideRepository.save(ride));
+    }
+
+    public RideResponse cancelRide(String rideId) {
+        Ride ride = findRide(rideId);
+        if (ride.getStatus() != RideStatus.REQUESTED
+                && ride.getStatus() != RideStatus.ASSIGNED
+                && ride.getStatus() != RideStatus.ACCEPTED) {
+            throw new InvalidRideStateException(
+                    "Ride cannot be cancelled from status " + ride.getStatus()
+            );
+        }
+
+        LocalDateTime now = LocalDateTime.now();
+        ride.setStatus(RideStatus.CANCELLED);
+        ride.setCancelledAt(now);
+        ride.setUpdatedAt(now);
+        return toResponse(rideRepository.save(ride));
+    }
+
+    private Ride findRide(String rideId) {
+        String normalizedRideId = requireNonBlank(rideId, "rideId is required");
+        return rideRepository.findById(normalizedRideId)
+                .orElseThrow(() -> new RideNotFoundException(normalizedRideId));
+    }
+
     private String requireNonBlank(String value, String message) {
         if (value == null || value.isBlank()) {
             throw new InvalidRideRequestException(message);
