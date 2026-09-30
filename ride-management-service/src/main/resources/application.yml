@@ -1,0 +1,10 @@
+spring:
+  application:
+    name: ride-management-service
+  data:
+    mongodb:
+      uri: ${MONGODB_URI:mongodb://localhost:27017/ridelink_ride_db}
+      auto-index-creation: true
+
+server:
+  port: ${SERVER_PORT:8083}
