@@ -51,6 +51,30 @@ public class GlobalExceptionHandler {
         return build(HttpStatus.NOT_FOUND, exception.getMessage(), request);
     }
 
+    @ExceptionHandler({NoEligibleDriverException.class, InvalidRideStateException.class})
+    public ResponseEntity<ApiErrorResponse> handleConflict(
+            RuntimeException exception,
+            HttpServletRequest request
+    ) {
+        return build(HttpStatus.CONFLICT, exception.getMessage(), request);
+    }
+
+    @ExceptionHandler(InvalidDriverServiceResponseException.class)
+    public ResponseEntity<ApiErrorResponse> handleInvalidDriverServiceResponse(
+            InvalidDriverServiceResponseException exception,
+            HttpServletRequest request
+    ) {
+        return build(HttpStatus.BAD_GATEWAY, exception.getMessage(), request);
+    }
+
+    @ExceptionHandler(DriverServiceUnavailableException.class)
+    public ResponseEntity<ApiErrorResponse> handleDriverServiceUnavailable(
+            DriverServiceUnavailableException exception,
+            HttpServletRequest request
+    ) {
+        return build(HttpStatus.SERVICE_UNAVAILABLE, exception.getMessage(), request);
+    }
+
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ApiErrorResponse> handleUnexpected(
             Exception exception,
