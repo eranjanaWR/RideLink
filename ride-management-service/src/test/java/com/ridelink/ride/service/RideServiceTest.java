@@ -5,12 +5,19 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import com.ridelink.ride.dto.CreateRideRequest;
 import com.ridelink.ride.dto.RideResponse;
+import com.ridelink.ride.exception.DriverServiceUnavailableException;
+import com.ridelink.ride.exception.InvalidDriverServiceResponseException;
 import com.ridelink.ride.exception.InvalidRideRequestException;
+import com.ridelink.ride.exception.InvalidRideStateException;
+import com.ridelink.ride.exception.NoEligibleDriverException;
 import com.ridelink.ride.exception.RideNotFoundException;
+import com.ridelink.ride.integration.driver.DriverServiceClient;
+import com.ridelink.ride.integration.driver.dto.EligibleDriverResponse;
 import com.ridelink.ride.model.Ride;
 import com.ridelink.ride.model.RideStatus;
 import com.ridelink.ride.repository.RideRepository;
@@ -31,6 +38,9 @@ class RideServiceTest {
 
     @Mock
     private RideRepository rideRepository;
+
+    @Mock
+    private DriverServiceClient driverServiceClient;
 
     @InjectMocks
     private RideService rideService;
@@ -225,6 +235,162 @@ class RideServiceTest {
         assertThat(response.updatedAt()).isEqualTo(now);
     }
 
+    @Test
+    void assignDriverUpdatesRequestedRideAndSavesIt() {
+        Ride ride = requestedRide("ride-1", "account-1");
+        when(rideRepository.findById("ride-1")).thenReturn(Optional.of(ride));
+        when(driverServiceClient.getEligibleDrivers("Colombo")).thenReturn(List.of(driver("driver-2")));
+        when(rideRepository.save(any(Ride.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        LocalDateTime before = LocalDateTime.now();
+        RideResponse response = rideService.assignDriver("ride-1");
+        LocalDateTime after = LocalDateTime.now();
+
+        assertThat(response.driverId()).isEqualTo("driver-2");
+        assertThat(response.status()).isEqualTo(RideStatus.ASSIGNED);
+        assertThat(response.assignedAt()).isBetween(before, after);
+        assertThat(response.updatedAt()).isEqualTo(response.assignedAt());
+        verify(driverServiceClient).getEligibleDrivers("Colombo");
+        verify(rideRepository).save(ride);
+    }
+
+    @Test
+    void assignDriverPreservesExistingRideDetails() {
+        Ride ride = requestedRide("ride-1", "account-1");
+        LocalDateTime requestedAt = ride.getRequestedAt();
+        when(rideRepository.findById("ride-1")).thenReturn(Optional.of(ride));
+        when(driverServiceClient.getEligibleDrivers("Colombo")).thenReturn(List.of(driver("driver-1")));
+        when(rideRepository.save(any(Ride.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        RideResponse response = rideService.assignDriver("ride-1");
+
+        assertThat(response.passengerId()).isEqualTo("account-1");
+        assertThat(response.pickupLocation()).isEqualTo("Colombo Fort");
+        assertThat(response.destinationLocation()).isEqualTo("Bambalapitiya");
+        assertThat(response.serviceArea()).isEqualTo("Colombo");
+        assertThat(response.requestedAt()).isEqualTo(requestedAt);
+        assertThat(response.estimatedFare()).isNull();
+        assertThat(response.finalFare()).isNull();
+    }
+
+    @Test
+    void assignDriverThrowsWhenRideDoesNotExist() {
+        when(rideRepository.findById("missing")).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> rideService.assignDriver("missing"))
+                .isInstanceOf(RideNotFoundException.class);
+        verifyNoInteractions(driverServiceClient);
+        verify(rideRepository, never()).save(any());
+    }
+
+    @Test
+    void assignDriverThrowsWhenNoEligibleDriverExists() {
+        Ride ride = requestedRide("ride-1", "account-1");
+        when(rideRepository.findById("ride-1")).thenReturn(Optional.of(ride));
+        when(driverServiceClient.getEligibleDrivers("Colombo")).thenReturn(List.of());
+
+        assertThatThrownBy(() -> rideService.assignDriver("ride-1"))
+                .isInstanceOf(NoEligibleDriverException.class)
+                .hasMessageContaining("Colombo");
+        verify(rideRepository, never()).save(any());
+    }
+
+    @Test
+    void assignDriverRejectsAssignedRide() {
+        assertAssignmentRejectedForStatus(RideStatus.ASSIGNED);
+    }
+
+    @Test
+    void assignDriverRejectsAcceptedRide() {
+        assertAssignmentRejectedForStatus(RideStatus.ACCEPTED);
+    }
+
+    @Test
+    void assignDriverRejectsInProgressRide() {
+        assertAssignmentRejectedForStatus(RideStatus.IN_PROGRESS);
+    }
+
+    @Test
+    void assignDriverRejectsCompletedRide() {
+        assertAssignmentRejectedForStatus(RideStatus.COMPLETED);
+    }
+
+    @Test
+    void assignDriverRejectsCancelledRide() {
+        assertAssignmentRejectedForStatus(RideStatus.CANCELLED);
+    }
+
+    @Test
+    void assignDriverSelectsLowestDriverIdDeterministically() {
+        Ride ride = requestedRide("ride-1", "account-1");
+        when(rideRepository.findById("ride-1")).thenReturn(Optional.of(ride));
+        when(driverServiceClient.getEligibleDrivers("Colombo"))
+                .thenReturn(List.of(driver("driver-z"), driver("driver-a"), driver("driver-m")));
+        when(rideRepository.save(any(Ride.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        RideResponse response = rideService.assignDriver("ride-1");
+
+        assertThat(response.driverId()).isEqualTo("driver-a");
+    }
+
+    @Test
+    void assignDriverRejectsBlankSelectedDriverId() {
+        Ride ride = requestedRide("ride-1", "account-1");
+        when(rideRepository.findById("ride-1")).thenReturn(Optional.of(ride));
+        when(driverServiceClient.getEligibleDrivers("Colombo")).thenReturn(List.of(driver(" ")));
+
+        assertThatThrownBy(() -> rideService.assignDriver("ride-1"))
+                .isInstanceOf(InvalidDriverServiceResponseException.class);
+        verify(rideRepository, never()).save(any());
+    }
+
+    @Test
+    void assignDriverRejectsNullSelectedDriverId() {
+        Ride ride = requestedRide("ride-1", "account-1");
+        when(rideRepository.findById("ride-1")).thenReturn(Optional.of(ride));
+        when(driverServiceClient.getEligibleDrivers("Colombo")).thenReturn(List.of(driver(null)));
+
+        assertThatThrownBy(() -> rideService.assignDriver("ride-1"))
+                .isInstanceOf(InvalidDriverServiceResponseException.class);
+        verify(rideRepository, never()).save(any());
+    }
+
+    @Test
+    void assignDriverRejectsNullEntryInUpstreamResponse() {
+        Ride ride = requestedRide("ride-1", "account-1");
+        when(rideRepository.findById("ride-1")).thenReturn(Optional.of(ride));
+        when(driverServiceClient.getEligibleDrivers("Colombo"))
+                .thenReturn(java.util.Arrays.asList((EligibleDriverResponse) null));
+
+        assertThatThrownBy(() -> rideService.assignDriver("ride-1"))
+                .isInstanceOf(InvalidDriverServiceResponseException.class);
+        verify(rideRepository, never()).save(any());
+    }
+
+    @Test
+    void assignDriverPropagatesStableUnavailableExceptionWithoutSaving() {
+        Ride ride = requestedRide("ride-1", "account-1");
+        when(rideRepository.findById("ride-1")).thenReturn(Optional.of(ride));
+        when(driverServiceClient.getEligibleDrivers("Colombo"))
+                .thenThrow(new DriverServiceUnavailableException());
+
+        assertThatThrownBy(() -> rideService.assignDriver("ride-1"))
+                .isInstanceOf(DriverServiceUnavailableException.class)
+                .hasMessage("Driver & Vehicle Service is currently unavailable");
+        verify(rideRepository, never()).save(any());
+    }
+
+    @Test
+    void assignDriverRejectsNullDriverList() {
+        Ride ride = requestedRide("ride-1", "account-1");
+        when(rideRepository.findById("ride-1")).thenReturn(Optional.of(ride));
+        when(driverServiceClient.getEligibleDrivers("Colombo")).thenReturn(null);
+
+        assertThatThrownBy(() -> rideService.assignDriver("ride-1"))
+                .isInstanceOf(InvalidDriverServiceResponseException.class);
+        verify(rideRepository, never()).save(any());
+    }
+
     private CreateRideRequest validRequest() {
         return requestWithLocations("Colombo Fort", "Bambalapitiya");
     }
@@ -245,5 +411,31 @@ class RideServiceTest {
         ride.setRequestedAt(now);
         ride.setUpdatedAt(now);
         return ride;
+    }
+
+    private EligibleDriverResponse driver(String driverId) {
+        return new EligibleDriverResponse(
+                driverId,
+                "driver-account",
+                "Colombo",
+                6.9271,
+                79.8612,
+                "AVAILABLE",
+                "vehicle-1",
+                "TEST-CAB-001",
+                "CAR"
+        );
+    }
+
+    private void assertAssignmentRejectedForStatus(RideStatus status) {
+        Ride ride = requestedRide("ride-1", "account-1");
+        ride.setStatus(status);
+        when(rideRepository.findById("ride-1")).thenReturn(Optional.of(ride));
+
+        assertThatThrownBy(() -> rideService.assignDriver("ride-1"))
+                .isInstanceOf(InvalidRideStateException.class)
+                .hasMessageContaining(status.name());
+        verifyNoInteractions(driverServiceClient);
+        verify(rideRepository, never()).save(any());
     }
 }

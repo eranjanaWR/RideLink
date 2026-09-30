@@ -10,7 +10,11 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ridelink.ride.dto.CreateRideRequest;
+import com.ridelink.ride.exception.DriverServiceUnavailableException;
 import com.ridelink.ride.exception.GlobalExceptionHandler;
+import com.ridelink.ride.exception.InvalidDriverServiceResponseException;
+import com.ridelink.ride.integration.driver.DriverServiceClient;
+import com.ridelink.ride.integration.driver.dto.EligibleDriverResponse;
 import com.ridelink.ride.model.Ride;
 import com.ridelink.ride.model.RideStatus;
 import com.ridelink.ride.repository.RideRepository;
@@ -39,6 +43,9 @@ class RideControllerTest {
 
     @MockitoBean
     private RideRepository rideRepository;
+
+    @MockitoBean
+    private DriverServiceClient driverServiceClient;
 
     @BeforeEach
     void saveReturnsPersistedArgument() {
@@ -238,6 +245,78 @@ class RideControllerTest {
                 )));
     }
 
+    @Test
+    void assignDriverReturnsOkWithAssignedRide() throws Exception {
+        when(rideRepository.findById("ride-1")).thenReturn(Optional.of(requestedRide("ride-1", "account-1")));
+        when(driverServiceClient.getEligibleDrivers("Colombo")).thenReturn(List.of(eligibleDriver("driver-1")));
+
+        mockMvc.perform(post("/api/rides/ride-1/assign"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value("ride-1"))
+                .andExpect(jsonPath("$.driverId").value("driver-1"))
+                .andExpect(jsonPath("$.status").value("ASSIGNED"))
+                .andExpect(jsonPath("$.assignedAt").isNotEmpty())
+                .andExpect(jsonPath("$.updatedAt").isNotEmpty());
+    }
+
+    @Test
+    void assignDriverReturnsNotFoundForUnknownRide() throws Exception {
+        when(rideRepository.findById("missing")).thenReturn(Optional.empty());
+
+        mockMvc.perform(post("/api/rides/missing/assign"))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.status").value(404))
+                .andExpect(jsonPath("$.error").value("Not Found"))
+                .andExpect(jsonPath("$.path").value("/api/rides/missing/assign"));
+    }
+
+    @Test
+    void assignDriverReturnsConflictWhenNoDriverIsEligible() throws Exception {
+        when(rideRepository.findById("ride-1")).thenReturn(Optional.of(requestedRide("ride-1", "account-1")));
+        when(driverServiceClient.getEligibleDrivers("Colombo")).thenReturn(List.of());
+
+        mockMvc.perform(post("/api/rides/ride-1/assign"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.status").value(409))
+                .andExpect(jsonPath("$.message").value(org.hamcrest.Matchers.containsString("Colombo")));
+    }
+
+    @Test
+    void assignDriverReturnsConflictForInvalidRideState() throws Exception {
+        Ride ride = requestedRide("ride-1", "account-1");
+        ride.setStatus(RideStatus.ASSIGNED);
+        when(rideRepository.findById("ride-1")).thenReturn(Optional.of(ride));
+
+        mockMvc.perform(post("/api/rides/ride-1/assign"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.status").value(409))
+                .andExpect(jsonPath("$.message").value(org.hamcrest.Matchers.containsString("ASSIGNED")));
+    }
+
+    @Test
+    void assignDriverReturnsServiceUnavailableWhenDriverServiceCannotBeReached() throws Exception {
+        when(rideRepository.findById("ride-1")).thenReturn(Optional.of(requestedRide("ride-1", "account-1")));
+        when(driverServiceClient.getEligibleDrivers("Colombo"))
+                .thenThrow(new DriverServiceUnavailableException());
+
+        mockMvc.perform(post("/api/rides/ride-1/assign"))
+                .andExpect(status().isServiceUnavailable())
+                .andExpect(jsonPath("$.status").value(503))
+                .andExpect(jsonPath("$.message").value("Driver & Vehicle Service is currently unavailable"));
+    }
+
+    @Test
+    void assignDriverReturnsBadGatewayForUnusableDriverResponse() throws Exception {
+        when(rideRepository.findById("ride-1")).thenReturn(Optional.of(requestedRide("ride-1", "account-1")));
+        when(driverServiceClient.getEligibleDrivers("Colombo"))
+                .thenThrow(new InvalidDriverServiceResponseException());
+
+        mockMvc.perform(post("/api/rides/ride-1/assign"))
+                .andExpect(status().isBadGateway())
+                .andExpect(jsonPath("$.status").value(502))
+                .andExpect(jsonPath("$.message").value("Driver & Vehicle Service returned an unusable response"));
+    }
+
     private void assertInvalidCreate(String json) throws Exception {
         mockMvc.perform(post("/api/rides")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -275,5 +354,19 @@ class RideControllerTest {
         ride.setRequestedAt(now);
         ride.setUpdatedAt(now);
         return ride;
+    }
+
+    private EligibleDriverResponse eligibleDriver(String driverId) {
+        return new EligibleDriverResponse(
+                driverId,
+                "driver-account",
+                "Colombo",
+                6.9271,
+                79.8612,
+                "AVAILABLE",
+                "vehicle-1",
+                "TEST-CAB-001",
+                "CAR"
+        );
     }
 }
