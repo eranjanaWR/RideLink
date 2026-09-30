@@ -56,8 +56,9 @@ public class RideController {
             summary = "Assign an eligible driver",
             description = "Assigns a driver only when the ride is REQUESTED. The Ride Service queries Driver & Vehicle "
                     + "Service using the ride's stored serviceArea, sorts eligible drivers by driverId, and selects the "
-                    + "first result. Distance ranking is not implemented. This operation does not change the selected "
-                    + "driver's availability and does not provide a distributed transaction."
+                    + "first result. Distance ranking is not implemented. The selected driver is marked UNAVAILABLE "
+                    + "before the ASSIGNED ride is saved. If saving fails, restoring availability is best-effort; this "
+                    + "operation does not provide a distributed transaction."
     )
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Driver assigned successfully"),
@@ -89,8 +90,8 @@ public class RideController {
     @PostMapping("/{rideId}/accept")
     @Operation(
             summary = "Accept an assigned ride",
-            description = "Transitions a ride from ASSIGNED to ACCEPTED. Driver availability synchronization is "
-                    + "outside this feature."
+            description = "Transitions a ride from ASSIGNED to ACCEPTED. The driver remains UNAVAILABLE; no additional "
+                    + "Driver Service availability request is made."
     )
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Ride accepted"),
@@ -112,8 +113,8 @@ public class RideController {
     @PostMapping("/{rideId}/start")
     @Operation(
             summary = "Start an accepted ride",
-            description = "Transitions a ride from ACCEPTED to IN_PROGRESS. Driver availability synchronization is "
-                    + "outside this feature."
+            description = "Transitions a ride from ACCEPTED to IN_PROGRESS. The driver remains UNAVAILABLE; no "
+                    + "additional Driver Service availability request is made."
     )
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Ride started"),
@@ -135,8 +136,8 @@ public class RideController {
     @PostMapping("/{rideId}/complete")
     @Operation(
             summary = "Complete an in-progress ride",
-            description = "Transitions a ride from IN_PROGRESS to COMPLETED. Completion does not calculate a final "
-                    + "fare, process payment, or synchronize driver availability."
+            description = "Marks the assigned driver AVAILABLE, then transitions the ride from IN_PROGRESS to "
+                    + "COMPLETED. Completion does not calculate a final fare or process payment."
     )
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Ride completed"),
@@ -147,7 +148,17 @@ public class RideController {
             ),
             @ApiResponse(
                     responseCode = "409",
-                    description = "Ride is not IN_PROGRESS",
+                    description = "Ride is not IN_PROGRESS or has no valid assigned driver",
+                    content = @Content(schema = @Schema(implementation = ApiErrorResponse.class))
+            ),
+            @ApiResponse(
+                    responseCode = "502",
+                    description = "Driver Service returned an unusable response",
+                    content = @Content(schema = @Schema(implementation = ApiErrorResponse.class))
+            ),
+            @ApiResponse(
+                    responseCode = "503",
+                    description = "Driver Service is unavailable",
                     content = @Content(schema = @Schema(implementation = ApiErrorResponse.class))
             )
     })
@@ -159,8 +170,8 @@ public class RideController {
     @Operation(
             summary = "Cancel a ride",
             description = "Transitions REQUESTED, ASSIGNED, or ACCEPTED rides to CANCELLED. Cancellation preserves "
-                    + "the assigned driver and earlier lifecycle timestamps. Driver availability synchronization is "
-                    + "outside this feature."
+                    + "the assigned driver and earlier lifecycle timestamps. Cancelling an ASSIGNED or ACCEPTED ride "
+                    + "first marks its driver AVAILABLE; cancelling a REQUESTED ride makes no Driver Service call."
     )
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Ride cancelled"),
@@ -171,7 +182,17 @@ public class RideController {
             ),
             @ApiResponse(
                     responseCode = "409",
-                    description = "Ride cannot be cancelled from its current state",
+                    description = "Ride cannot be cancelled from its current state or has no valid assigned driver",
+                    content = @Content(schema = @Schema(implementation = ApiErrorResponse.class))
+            ),
+            @ApiResponse(
+                    responseCode = "502",
+                    description = "Driver Service returned an unusable response",
+                    content = @Content(schema = @Schema(implementation = ApiErrorResponse.class))
+            ),
+            @ApiResponse(
+                    responseCode = "503",
+                    description = "Driver Service is unavailable",
                     content = @Content(schema = @Schema(implementation = ApiErrorResponse.class))
             )
     })

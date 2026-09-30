@@ -1,12 +1,15 @@
 package com.ridelink.ride.controller;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.ridelink.ride.exception.GlobalExceptionHandler;
+import com.ridelink.ride.exception.DriverServiceUnavailableException;
+import com.ridelink.ride.exception.InvalidDriverServiceResponseException;
 import com.ridelink.ride.integration.driver.DriverServiceClient;
 import com.ridelink.ride.model.Ride;
 import com.ridelink.ride.model.RideStatus;
@@ -108,6 +111,29 @@ class RideLifecycleControllerTest {
     }
 
     @Test
+    void completeEndpointReturnsServiceUnavailableWhenAvailabilityUpdateFails() throws Exception {
+        when(rideRepository.findById("ride-1")).thenReturn(Optional.of(rideWithStatus(RideStatus.IN_PROGRESS)));
+        doThrow(new DriverServiceUnavailableException())
+                .when(driverServiceClient).markDriverAvailable("driver-1");
+
+        mockMvc.perform(post("/api/rides/ride-1/complete"))
+                .andExpect(status().isServiceUnavailable())
+                .andExpect(jsonPath("$.status").value(503))
+                .andExpect(jsonPath("$.message").value("Driver & Vehicle Service is currently unavailable"));
+    }
+
+    @Test
+    void completeEndpointReturnsBadGatewayForUnusableAvailabilityResponse() throws Exception {
+        when(rideRepository.findById("ride-1")).thenReturn(Optional.of(rideWithStatus(RideStatus.IN_PROGRESS)));
+        doThrow(new InvalidDriverServiceResponseException())
+                .when(driverServiceClient).markDriverAvailable("driver-1");
+
+        mockMvc.perform(post("/api/rides/ride-1/complete"))
+                .andExpect(status().isBadGateway())
+                .andExpect(jsonPath("$.status").value(502));
+    }
+
+    @Test
     void cancelEndpointReturnsOk() throws Exception {
         when(rideRepository.findById("ride-1")).thenReturn(Optional.of(rideWithStatus(RideStatus.ACCEPTED)));
 
@@ -126,6 +152,17 @@ class RideLifecycleControllerTest {
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.status").value(409))
                 .andExpect(jsonPath("$.message").value("Ride cannot be cancelled from status IN_PROGRESS"));
+    }
+
+    @Test
+    void cancelEndpointReturnsServiceUnavailableWhenAvailabilityUpdateFails() throws Exception {
+        when(rideRepository.findById("ride-1")).thenReturn(Optional.of(rideWithStatus(RideStatus.ASSIGNED)));
+        doThrow(new DriverServiceUnavailableException())
+                .when(driverServiceClient).markDriverAvailable("driver-1");
+
+        mockMvc.perform(post("/api/rides/ride-1/cancel"))
+                .andExpect(status().isServiceUnavailable())
+                .andExpect(jsonPath("$.status").value(503));
     }
 
     private Ride rideWithStatus(RideStatus status) {

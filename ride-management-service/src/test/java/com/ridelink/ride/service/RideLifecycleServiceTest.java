@@ -166,8 +166,8 @@ class RideLifecycleServiceTest {
         assertThat(response.estimatedFare()).isEqualByComparingTo("450.00");
         assertThat(response.finalFare()).isEqualByComparingTo("475.00");
         assertCommonFieldsPreserved(response, ride);
+        verify(driverServiceClient).markDriverAvailable("driver-1");
         verify(rideRepository).save(ride);
-        verifyNoInteractions(driverServiceClient);
     }
 
     @Test
@@ -190,6 +190,7 @@ class RideLifecycleServiceTest {
         assertThatThrownBy(() -> rideService.completeRide("ride-1"))
                 .isInstanceOf(InvalidRideStateException.class)
                 .hasMessage("Ride must be IN_PROGRESS before it can be completed");
+        verifyNoInteractions(driverServiceClient);
         verify(rideRepository, never()).save(any());
     }
 
@@ -219,6 +220,7 @@ class RideLifecycleServiceTest {
         assertThat(response.driverId()).isEqualTo("driver-1");
         assertThat(response.assignedAt()).isEqualTo(assignedAt);
         assertThat(response.cancelledAt()).isNotNull();
+        verify(driverServiceClient).markDriverAvailable("driver-1");
         verify(rideRepository).save(ride);
     }
 
@@ -238,6 +240,7 @@ class RideLifecycleServiceTest {
         assertThat(response.cancelledAt()).isNotNull();
         assertThat(response.estimatedFare()).isEqualByComparingTo("450.00");
         assertThat(response.finalFare()).isEqualByComparingTo("475.00");
+        verify(driverServiceClient).markDriverAvailable("driver-1");
         verify(rideRepository).save(ride);
     }
 
@@ -259,6 +262,7 @@ class RideLifecycleServiceTest {
         assertThatThrownBy(() -> rideService.cancelRide("ride-1"))
                 .isInstanceOf(InvalidRideStateException.class)
                 .hasMessage("Ride cannot be cancelled from status " + status);
+        verifyNoInteractions(driverServiceClient);
         verify(rideRepository, never()).save(any());
     }
 

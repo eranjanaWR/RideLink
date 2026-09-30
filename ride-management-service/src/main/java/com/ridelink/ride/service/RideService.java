@@ -17,10 +17,14 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 @Service
 public class RideService {
+
+    private static final Logger LOGGER = LoggerFactory.getLogger(RideService.class);
 
     private final RideRepository rideRepository;
     private final DriverServiceClient driverServiceClient;
@@ -109,13 +113,30 @@ public class RideService {
             throw new InvalidDriverServiceResponseException();
         }
 
+        String selectedDriverId = selectedDriver.driverId();
+        driverServiceClient.markDriverUnavailable(selectedDriverId);
+
+        String previousDriverId = ride.getDriverId();
+        RideStatus previousStatus = ride.getStatus();
+        LocalDateTime previousAssignedAt = ride.getAssignedAt();
+        LocalDateTime previousUpdatedAt = ride.getUpdatedAt();
+
         LocalDateTime now = LocalDateTime.now();
-        ride.setDriverId(selectedDriver.driverId());
+        ride.setDriverId(selectedDriverId);
         ride.setStatus(RideStatus.ASSIGNED);
         ride.setAssignedAt(now);
         ride.setUpdatedAt(now);
 
-        return toResponse(rideRepository.save(ride));
+        try {
+            return toResponse(rideRepository.save(ride));
+        } catch (RuntimeException persistenceFailure) {
+            ride.setDriverId(previousDriverId);
+            ride.setStatus(previousStatus);
+            ride.setAssignedAt(previousAssignedAt);
+            ride.setUpdatedAt(previousUpdatedAt);
+            compensateFailedAssignment(selectedDriverId, ride.getId());
+            throw persistenceFailure;
+        }
     }
 
     public RideResponse acceptRide(String rideId) {
@@ -152,6 +173,11 @@ public class RideService {
         if (ride.getStatus() != RideStatus.IN_PROGRESS) {
             throw new InvalidRideStateException("Ride must be IN_PROGRESS before it can be completed");
         }
+        if (ride.getDriverId() == null || ride.getDriverId().isBlank()) {
+            throw new InvalidRideStateException("Ride must have an assigned driver before it can be completed");
+        }
+
+        driverServiceClient.markDriverAvailable(ride.getDriverId());
 
         LocalDateTime now = LocalDateTime.now();
         ride.setStatus(RideStatus.COMPLETED);
@@ -170,11 +196,30 @@ public class RideService {
             );
         }
 
+        if (ride.getStatus() == RideStatus.ASSIGNED || ride.getStatus() == RideStatus.ACCEPTED) {
+            if (ride.getDriverId() == null || ride.getDriverId().isBlank()) {
+                throw new InvalidRideStateException("Ride must have an assigned driver before it can be cancelled");
+            }
+            driverServiceClient.markDriverAvailable(ride.getDriverId());
+        }
+
         LocalDateTime now = LocalDateTime.now();
         ride.setStatus(RideStatus.CANCELLED);
         ride.setCancelledAt(now);
         ride.setUpdatedAt(now);
         return toResponse(rideRepository.save(ride));
+    }
+
+    private void compensateFailedAssignment(String driverId, String rideId) {
+        try {
+            driverServiceClient.markDriverAvailable(driverId);
+        } catch (RuntimeException compensationFailure) {
+            LOGGER.warn(
+                    "Could not restore availability for driver {} after assignment persistence failed for ride {}",
+                    driverId,
+                    rideId
+            );
+        }
     }
 
     private Ride findRide(String rideId) {

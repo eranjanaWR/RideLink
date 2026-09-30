@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.method;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
+import static org.springframework.test.web.client.match.MockRestRequestMatchers.content;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withException;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withStatus;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
@@ -140,6 +141,94 @@ class DriverServiceClientTest {
 
         assertThatThrownBy(() -> client.getEligibleDrivers("Colombo"))
                 .isInstanceOf(InvalidDriverServiceResponseException.class);
+        server.verify();
+    }
+
+    @Test
+    void marksDriverUnavailableUsingPatchPathAndJsonBody() {
+        server.expect(requestTo("http://driver-service.test/api/drivers/driver-1/availability"))
+                .andExpect(method(HttpMethod.PATCH))
+                .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+                .andExpect(content().json("""
+                        {"availabilityStatus":"UNAVAILABLE"}
+                        """))
+                .andRespond(withSuccess("""
+                        {"id":"driver-1","availabilityStatus":"UNAVAILABLE","accountId":"account-1"}
+                        """, MediaType.APPLICATION_JSON));
+
+        client.markDriverUnavailable("driver-1");
+
+        server.verify();
+    }
+
+    @Test
+    void marksDriverAvailableUsingPatchPathAndJsonBody() {
+        server.expect(requestTo("http://driver-service.test/api/drivers/driver%20two/availability"))
+                .andExpect(method(HttpMethod.PATCH))
+                .andExpect(content().json("""
+                        {"availabilityStatus":"AVAILABLE"}
+                        """))
+                .andRespond(withSuccess("""
+                        {"id":"driver two","availabilityStatus":"AVAILABLE"}
+                        """, MediaType.APPLICATION_JSON));
+
+        client.markDriverAvailable("driver two");
+
+        server.verify();
+    }
+
+    @Test
+    void rejectsMissingAvailabilityResponseBody() {
+        server.expect(requestTo("http://driver-service.test/api/drivers/driver-1/availability"))
+                .andRespond(withStatus(HttpStatus.OK));
+
+        assertThatThrownBy(() -> client.markDriverUnavailable("driver-1"))
+                .isInstanceOf(InvalidDriverServiceResponseException.class);
+        server.verify();
+    }
+
+    @Test
+    void rejectsMismatchedAvailabilityResponse() {
+        server.expect(requestTo("http://driver-service.test/api/drivers/driver-1/availability"))
+                .andRespond(withSuccess("""
+                        {"id":"driver-1","availabilityStatus":"AVAILABLE"}
+                        """, MediaType.APPLICATION_JSON));
+
+        assertThatThrownBy(() -> client.markDriverUnavailable("driver-1"))
+                .isInstanceOf(InvalidDriverServiceResponseException.class);
+        server.verify();
+    }
+
+    @Test
+    void rejectsMismatchedDriverIdInAvailabilityResponse() {
+        server.expect(requestTo("http://driver-service.test/api/drivers/driver-1/availability"))
+                .andRespond(withSuccess("""
+                        {"id":"driver-2","availabilityStatus":"UNAVAILABLE"}
+                        """, MediaType.APPLICATION_JSON));
+
+        assertThatThrownBy(() -> client.markDriverUnavailable("driver-1"))
+                .isInstanceOf(InvalidDriverServiceResponseException.class);
+        server.verify();
+    }
+
+    @Test
+    void mapsAvailabilityUpstreamServerErrorToUnavailableException() {
+        server.expect(requestTo("http://driver-service.test/api/drivers/driver-1/availability"))
+                .andRespond(withStatus(HttpStatus.INTERNAL_SERVER_ERROR));
+
+        assertThatThrownBy(() -> client.markDriverAvailable("driver-1"))
+                .isInstanceOf(DriverServiceUnavailableException.class);
+        server.verify();
+    }
+
+    @Test
+    void mapsAvailabilityNetworkFailureToUnavailableException() {
+        server.expect(requestTo("http://driver-service.test/api/drivers/driver-1/availability"))
+                .andRespond(withException(new IOException("connection refused")));
+
+        assertThatThrownBy(() -> client.markDriverAvailable("driver-1"))
+                .isInstanceOf(DriverServiceUnavailableException.class)
+                .hasMessageNotContaining("connection refused");
         server.verify();
     }
 }
