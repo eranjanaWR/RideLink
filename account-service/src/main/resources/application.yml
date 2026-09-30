@@ -1,0 +1,17 @@
+spring:
+  application:
+    name: account-service
+  data:
+    mongodb:
+      uri: ${MONGODB_URI:mongodb://localhost:27017/ridelink_account_db}
+      auto-index-creation: true
+  jackson:
+    deserialization:
+      fail-on-unknown-properties: true
+
+server:
+  port: ${SERVER_PORT:8081}
+
+logging:
+  level:
+    org.springframework.web: INFO
