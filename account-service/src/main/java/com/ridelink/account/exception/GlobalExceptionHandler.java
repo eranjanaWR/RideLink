@@ -40,6 +40,17 @@ public class GlobalExceptionHandler {
         return error(HttpStatus.CONFLICT, exception.getMessage(), request);
     }
 
+    @ExceptionHandler(InvalidCredentialsException.class)
+    public ResponseEntity<ApiError> handleInvalidCredentials(InvalidCredentialsException exception,
+                                                              HttpServletRequest request) {
+        return error(HttpStatus.UNAUTHORIZED, exception.getMessage(), request);
+    }
+
+    @ExceptionHandler({AccountSuspendedException.class, AccountDisabledException.class})
+    public ResponseEntity<ApiError> handleForbidden(RuntimeException exception, HttpServletRequest request) {
+        return error(HttpStatus.FORBIDDEN, exception.getMessage(), request);
+    }
+
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ApiError> handleUnexpected(Exception exception, HttpServletRequest request) {
         return error(HttpStatus.INTERNAL_SERVER_ERROR, "An unexpected error occurred", request);

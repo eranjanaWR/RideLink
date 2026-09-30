@@ -12,6 +12,11 @@ spring:
 server:
   port: ${SERVER_PORT:8081}
 
+security:
+  jwt:
+    secret: ${JWT_SECRET:dev-only-change-this-secret-to-a-long-random-value}
+    expiration-ms: ${JWT_EXPIRATION_MS:3600000}
+
 logging:
   level:
     org.springframework.web: INFO
