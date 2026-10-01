@@ -1,6 +1,7 @@
 package com.ridelink.ride.service;
 
 import com.ridelink.ride.dto.CreateRideRequest;
+import com.ridelink.ride.dto.CompleteRideWithPaymentRequest;
 import com.ridelink.ride.dto.RideResponse;
 import com.ridelink.ride.exception.InvalidDriverServiceResponseException;
 import com.ridelink.ride.exception.InvalidRideRequestException;
@@ -9,9 +10,13 @@ import com.ridelink.ride.exception.NoEligibleDriverException;
 import com.ridelink.ride.exception.RideNotFoundException;
 import com.ridelink.ride.integration.driver.DriverServiceClient;
 import com.ridelink.ride.integration.driver.dto.EligibleDriverResponse;
+import com.ridelink.ride.integration.farepayment.FarePaymentServiceClient;
+import com.ridelink.ride.integration.farepayment.dto.FinalFareResponse;
+import com.ridelink.ride.integration.farepayment.dto.PaymentResponse;
 import com.ridelink.ride.model.Ride;
 import com.ridelink.ride.model.RideStatus;
 import com.ridelink.ride.repository.RideRepository;
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.Comparator;
 import java.util.List;
@@ -25,13 +30,20 @@ import org.springframework.stereotype.Service;
 public class RideService {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(RideService.class);
+    private static final BigDecimal MAX_COMPLETION_DISTANCE_KM = new BigDecimal("1000.0");
 
     private final RideRepository rideRepository;
     private final DriverServiceClient driverServiceClient;
+    private final FarePaymentServiceClient farePaymentServiceClient;
 
-    public RideService(RideRepository rideRepository, DriverServiceClient driverServiceClient) {
+    public RideService(
+            RideRepository rideRepository,
+            DriverServiceClient driverServiceClient,
+            FarePaymentServiceClient farePaymentServiceClient
+    ) {
         this.rideRepository = rideRepository;
         this.driverServiceClient = driverServiceClient;
+        this.farePaymentServiceClient = farePaymentServiceClient;
     }
 
     public RideResponse createRide(CreateRideRequest request) {
@@ -55,6 +67,7 @@ public class RideService {
         ride.setStatus(RideStatus.REQUESTED);
         ride.setEstimatedFare(null);
         ride.setFinalFare(null);
+        ride.setPaymentId(null);
         ride.setRequestedAt(now);
         ride.setAssignedAt(null);
         ride.setAcceptedAt(null);
@@ -186,6 +199,44 @@ public class RideService {
         return toResponse(rideRepository.save(ride));
     }
 
+    public RideResponse completeRideWithPayment(
+            String rideId,
+            CompleteRideWithPaymentRequest request
+    ) {
+        validateCompletionRequest(request);
+        Ride ride = findRide(rideId);
+        if (ride.getStatus() != RideStatus.IN_PROGRESS) {
+            throw new InvalidRideStateException(
+                    "Ride must be IN_PROGRESS before completion with payment"
+            );
+        }
+        if (ride.getDriverId() == null || ride.getDriverId().isBlank()) {
+            throw new InvalidRideStateException(
+                    "Ride must have an assigned driver before completion with payment"
+            );
+        }
+
+        FinalFareResponse finalFare = farePaymentServiceClient.obtainFinalFare(
+                ride.getId(),
+                request.distanceKm()
+        );
+        PaymentResponse payment = farePaymentServiceClient.obtainPendingPayment(
+                ride.getId(),
+                ride.getPassengerId(),
+                finalFare.finalFare(),
+                request.paymentMethod()
+        );
+        driverServiceClient.markDriverAvailable(ride.getDriverId());
+
+        LocalDateTime now = LocalDateTime.now();
+        ride.setStatus(RideStatus.COMPLETED);
+        ride.setFinalFare(finalFare.finalFare());
+        ride.setPaymentId(payment.id());
+        ride.setCompletedAt(now);
+        ride.setUpdatedAt(now);
+        return toResponse(rideRepository.save(ride));
+    }
+
     public RideResponse cancelRide(String rideId) {
         Ride ride = findRide(rideId);
         if (ride.getStatus() != RideStatus.REQUESTED
@@ -222,6 +273,20 @@ public class RideService {
         }
     }
 
+    private void validateCompletionRequest(CompleteRideWithPaymentRequest request) {
+        if (request == null
+                || request.distanceKm() == null
+                || request.distanceKm().signum() <= 0
+                || request.distanceKm().compareTo(MAX_COMPLETION_DISTANCE_KM) > 0) {
+            throw new InvalidRideRequestException(
+                    "distanceKm must be greater than zero and at most 1000"
+            );
+        }
+        if (request.paymentMethod() == null) {
+            throw new InvalidRideRequestException("paymentMethod is required");
+        }
+    }
+
     private Ride findRide(String rideId) {
         String normalizedRideId = requireNonBlank(rideId, "rideId is required");
         return rideRepository.findById(normalizedRideId)
@@ -246,6 +311,7 @@ public class RideService {
                 ride.getStatus(),
                 ride.getEstimatedFare(),
                 ride.getFinalFare(),
+                ride.getPaymentId(),
                 ride.getRequestedAt(),
                 ride.getAssignedAt(),
                 ride.getAcceptedAt(),

@@ -12,3 +12,5 @@ server:
 services:
   driver:
     base-url: ${DRIVER_SERVICE_URL:http://localhost:8082}
+  fare-payment:
+    base-url: ${FARE_PAYMENT_SERVICE_URL:http://localhost:8084}
