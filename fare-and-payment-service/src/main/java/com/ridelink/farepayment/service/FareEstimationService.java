@@ -1,7 +1,6 @@
 package com.ridelink.farepayment.service;
 
 import java.math.BigDecimal;
-import java.math.RoundingMode;
 import java.time.LocalDateTime;
 import java.util.UUID;
 
@@ -41,13 +40,11 @@ public class FareEstimationService {
             throw new InvalidFareEstimateException("Pickup and destination must be different");
         }
 
-        BigDecimal distanceFare = distanceKm.multiply(properties.perKmRate())
-                .setScale(2, RoundingMode.HALF_UP);
-        BigDecimal estimatedFare = properties.baseFare().add(distanceFare)
-                .max(properties.minimumFare()).setScale(2, RoundingMode.HALF_UP);
+        FareCalculator.FareAmounts amounts = FareCalculator.calculate(distanceKm,
+                properties.baseFare(), properties.perKmRate(), properties.minimumFare());
         FareEstimate estimate = new FareEstimate(UUID.randomUUID().toString(), pickup, destination,
-                distanceKm, properties.baseFare(), properties.perKmRate(), distanceFare,
-                estimatedFare, properties.currency(), LocalDateTime.now());
+                distanceKm, properties.baseFare(), properties.perKmRate(), amounts.distanceFare(),
+                amounts.totalFare(), properties.currency(), LocalDateTime.now());
         return FareEstimateResponse.from(repository.save(estimate));
     }
 

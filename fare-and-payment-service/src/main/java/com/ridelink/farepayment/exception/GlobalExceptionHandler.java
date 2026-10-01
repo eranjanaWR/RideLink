@@ -34,6 +34,12 @@ public class GlobalExceptionHandler {
         return error(HttpStatus.BAD_REQUEST, exception.getMessage(), request);
     }
 
+    @ExceptionHandler(InvalidFinalFareException.class)
+    public ResponseEntity<ApiError> handleInvalidFinalFare(InvalidFinalFareException exception,
+                                                            HttpServletRequest request) {
+        return error(HttpStatus.BAD_REQUEST, exception.getMessage(), request);
+    }
+
     @ExceptionHandler(InvalidPaymentRequestException.class)
     public ResponseEntity<ApiError> handleInvalidPayment(InvalidPaymentRequestException exception,
                                                           HttpServletRequest request) {
@@ -46,6 +52,12 @@ public class GlobalExceptionHandler {
         return error(HttpStatus.NOT_FOUND, exception.getMessage(), request);
     }
 
+    @ExceptionHandler(FinalFareNotFoundException.class)
+    public ResponseEntity<ApiError> handleFinalFareNotFound(FinalFareNotFoundException exception,
+                                                             HttpServletRequest request) {
+        return error(HttpStatus.NOT_FOUND, exception.getMessage(), request);
+    }
+
     @ExceptionHandler(PaymentNotFoundException.class)
     public ResponseEntity<ApiError> handlePaymentNotFound(PaymentNotFoundException exception,
                                                            HttpServletRequest request) {
@@ -55,6 +67,12 @@ public class GlobalExceptionHandler {
     @ExceptionHandler({DuplicatePaymentException.class, InvalidPaymentStateException.class})
     public ResponseEntity<ApiError> handlePaymentConflict(RuntimeException exception,
                                                            HttpServletRequest request) {
+        return error(HttpStatus.CONFLICT, exception.getMessage(), request);
+    }
+
+    @ExceptionHandler(DuplicateFinalFareException.class)
+    public ResponseEntity<ApiError> handleDuplicateFinalFare(DuplicateFinalFareException exception,
+                                                              HttpServletRequest request) {
         return error(HttpStatus.CONFLICT, exception.getMessage(), request);
     }
 
