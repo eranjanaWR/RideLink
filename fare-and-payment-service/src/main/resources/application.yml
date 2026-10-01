@@ -1,0 +1,19 @@
+spring:
+  application:
+    name: fare-and-payment-service
+  data:
+    mongodb:
+      uri: ${MONGODB_URI:mongodb://localhost:27017/ridelink_fare_payment_db}
+      auto-index-creation: true
+  jackson:
+    deserialization:
+      fail-on-unknown-properties: true
+
+server:
+  port: ${SERVER_PORT:8084}
+
+fare:
+  currency: ${FARE_CURRENCY:LKR}
+  base-fare: ${FARE_BASE_FARE:150.00}
+  per-km-rate: ${FARE_PER_KM_RATE:80.00}
+  minimum-fare: ${FARE_MINIMUM_FARE:250.00}
