@@ -14,6 +14,7 @@ public record RideResponse(
         RideStatus status,
         BigDecimal estimatedFare,
         BigDecimal finalFare,
+        String paymentId,
         LocalDateTime requestedAt,
         LocalDateTime assignedAt,
         LocalDateTime acceptedAt,
