@@ -13,6 +13,7 @@ import java.time.LocalDateTime;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.ridelink.account.config.SecurityConfig;
+import com.ridelink.account.security.SecurityErrorHandler;
 import com.ridelink.account.dto.AccountResponse;
 import com.ridelink.account.dto.LoginRequest;
 import com.ridelink.account.dto.LoginResponse;
@@ -23,6 +24,7 @@ import com.ridelink.account.model.AccountRole;
 import com.ridelink.account.model.AccountStatus;
 import com.ridelink.account.service.AccountService;
 import com.ridelink.account.service.AuthService;
+import com.ridelink.account.service.JwtService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.security.servlet.UserDetailsServiceAutoConfiguration;
@@ -34,12 +36,13 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultActions;
 
 @WebMvcTest(value = AuthController.class, excludeAutoConfiguration = UserDetailsServiceAutoConfiguration.class)
-@Import(SecurityConfig.class)
+@Import({SecurityConfig.class, SecurityErrorHandler.class})
 class LoginControllerTest {
     @Autowired MockMvc mvc;
     @Autowired ObjectMapper mapper;
     @MockitoBean AccountService accountService;
     @MockitoBean AuthService authService;
+    @MockitoBean JwtService jwtService;
 
     private ObjectNode validLogin() {
         ObjectNode body = mapper.createObjectNode();
