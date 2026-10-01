@@ -34,10 +34,28 @@ public class GlobalExceptionHandler {
         return error(HttpStatus.BAD_REQUEST, exception.getMessage(), request);
     }
 
+    @ExceptionHandler(InvalidPaymentRequestException.class)
+    public ResponseEntity<ApiError> handleInvalidPayment(InvalidPaymentRequestException exception,
+                                                          HttpServletRequest request) {
+        return error(HttpStatus.BAD_REQUEST, exception.getMessage(), request);
+    }
+
     @ExceptionHandler(FareEstimateNotFoundException.class)
     public ResponseEntity<ApiError> handleNotFound(FareEstimateNotFoundException exception,
                                                     HttpServletRequest request) {
         return error(HttpStatus.NOT_FOUND, exception.getMessage(), request);
+    }
+
+    @ExceptionHandler(PaymentNotFoundException.class)
+    public ResponseEntity<ApiError> handlePaymentNotFound(PaymentNotFoundException exception,
+                                                           HttpServletRequest request) {
+        return error(HttpStatus.NOT_FOUND, exception.getMessage(), request);
+    }
+
+    @ExceptionHandler({DuplicatePaymentException.class, InvalidPaymentStateException.class})
+    public ResponseEntity<ApiError> handlePaymentConflict(RuntimeException exception,
+                                                           HttpServletRequest request) {
+        return error(HttpStatus.CONFLICT, exception.getMessage(), request);
     }
 
     @ExceptionHandler(Exception.class)
