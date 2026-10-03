@@ -1,6 +1,7 @@
 package com.ridelink.ride.controller;
 
 import com.ridelink.ride.dto.CreateRideRequest;
+import com.ridelink.ride.dto.CompleteRideWithPaymentRequest;
 import com.ridelink.ride.dto.RideResponse;
 import com.ridelink.ride.exception.ApiErrorResponse;
 import com.ridelink.ride.service.RideService;
@@ -164,6 +165,54 @@ public class RideController {
     })
     public ResponseEntity<RideResponse> completeRide(@PathVariable String rideId) {
         return ResponseEntity.ok(rideService.completeRide(rideId));
+    }
+
+    @PostMapping("/{rideId}/complete-with-payment")
+    @Operation(
+            summary = "Complete a ride with a simulated payment",
+            description = "For an IN_PROGRESS ride, obtains or reuses a final fare from Fare & Payment Service, "
+                    + "creates or reuses a compatible PENDING simulated payment whose amount comes from that final "
+                    + "fare, releases the driver, and completes the ride. Safe retries may reuse an existing final-fare "
+                    + "or payment record; no distributed transaction is provided."
+    )
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Ride completed with final fare and payment reference"),
+            @ApiResponse(
+                    responseCode = "400",
+                    description = "Invalid distance or payment method",
+                    content = @Content(schema = @Schema(implementation = ApiErrorResponse.class))
+            ),
+            @ApiResponse(
+                    responseCode = "404",
+                    description = "Ride not found",
+                    content = @Content(schema = @Schema(implementation = ApiErrorResponse.class))
+            ),
+            @ApiResponse(
+                    responseCode = "409",
+                    description = "Ride state is invalid or an existing payment is incompatible",
+                    content = @Content(schema = @Schema(implementation = ApiErrorResponse.class))
+            ),
+            @ApiResponse(
+                    responseCode = "502",
+                    description = "A downstream service returned an unusable response",
+                    content = @Content(schema = @Schema(implementation = ApiErrorResponse.class))
+            ),
+            @ApiResponse(
+                    responseCode = "503",
+                    description = "Fare & Payment Service or Driver Service is unavailable",
+                    content = @Content(schema = @Schema(implementation = ApiErrorResponse.class))
+            ),
+            @ApiResponse(
+                    responseCode = "500",
+                    description = "Unexpected server error",
+                    content = @Content(schema = @Schema(implementation = ApiErrorResponse.class))
+            )
+    })
+    public ResponseEntity<RideResponse> completeRideWithPayment(
+            @PathVariable String rideId,
+            @Valid @RequestBody CompleteRideWithPaymentRequest request
+    ) {
+        return ResponseEntity.ok(rideService.completeRideWithPayment(rideId, request));
     }
 
     @PostMapping("/{rideId}/cancel")

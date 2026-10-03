@@ -59,6 +59,14 @@ public class GlobalExceptionHandler {
         return build(HttpStatus.CONFLICT, exception.getMessage(), request);
     }
 
+    @ExceptionHandler(PaymentConflictException.class)
+    public ResponseEntity<ApiErrorResponse> handlePaymentConflict(
+            PaymentConflictException exception,
+            HttpServletRequest request
+    ) {
+        return build(HttpStatus.CONFLICT, exception.getMessage(), request);
+    }
+
     @ExceptionHandler(InvalidDriverServiceResponseException.class)
     public ResponseEntity<ApiErrorResponse> handleInvalidDriverServiceResponse(
             InvalidDriverServiceResponseException exception,
@@ -67,9 +75,25 @@ public class GlobalExceptionHandler {
         return build(HttpStatus.BAD_GATEWAY, exception.getMessage(), request);
     }
 
+    @ExceptionHandler(InvalidFarePaymentResponseException.class)
+    public ResponseEntity<ApiErrorResponse> handleInvalidFarePaymentResponse(
+            InvalidFarePaymentResponseException exception,
+            HttpServletRequest request
+    ) {
+        return build(HttpStatus.BAD_GATEWAY, exception.getMessage(), request);
+    }
+
     @ExceptionHandler(DriverServiceUnavailableException.class)
     public ResponseEntity<ApiErrorResponse> handleDriverServiceUnavailable(
             DriverServiceUnavailableException exception,
+            HttpServletRequest request
+    ) {
+        return build(HttpStatus.SERVICE_UNAVAILABLE, exception.getMessage(), request);
+    }
+
+    @ExceptionHandler(FarePaymentServiceUnavailableException.class)
+    public ResponseEntity<ApiErrorResponse> handleFarePaymentServiceUnavailable(
+            FarePaymentServiceUnavailableException exception,
             HttpServletRequest request
     ) {
         return build(HttpStatus.SERVICE_UNAVAILABLE, exception.getMessage(), request);

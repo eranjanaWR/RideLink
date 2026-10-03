@@ -10,9 +10,9 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
         info = @Info(
                 title = "RideLink Ride Management API",
                 version = "v1",
-                description = "Creates, retrieves, assigns, and manages the lifecycle of ride requests. Fare and payment "
-                        + "processing are not part of this feature. Driver availability is synchronized through the "
-                        + "Driver & Vehicle Service during assignment, completion, and assigned-ride cancellation."
+                description = "Creates, retrieves, assigns, and manages the lifecycle of ride requests. Integrated "
+                        + "completion can obtain a final fare and create a simulated payment through Fare & Payment "
+                        + "Service. Driver availability is synchronized through Driver & Vehicle Service."
         )
 )
 public class RideManagementServiceApplication {

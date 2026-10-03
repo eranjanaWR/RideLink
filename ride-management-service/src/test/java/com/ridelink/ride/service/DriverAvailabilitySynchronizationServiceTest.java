@@ -15,6 +15,7 @@ import com.ridelink.ride.exception.InvalidDriverServiceResponseException;
 import com.ridelink.ride.exception.InvalidRideStateException;
 import com.ridelink.ride.integration.driver.DriverServiceClient;
 import com.ridelink.ride.integration.driver.dto.EligibleDriverResponse;
+import com.ridelink.ride.integration.farepayment.FarePaymentServiceClient;
 import com.ridelink.ride.model.Ride;
 import com.ridelink.ride.model.RideStatus;
 import com.ridelink.ride.repository.RideRepository;
@@ -40,6 +41,9 @@ class DriverAvailabilitySynchronizationServiceTest {
 
     @Mock
     private DriverServiceClient driverServiceClient;
+
+    @Mock
+    private FarePaymentServiceClient farePaymentServiceClient;
 
     @InjectMocks
     private RideService rideService;
