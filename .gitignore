@@ -12,9 +12,11 @@ target/
 *.pid
 *.log
 logs/
+.logs/
 
 # Environment files and secrets
 .env
+.env.local
 .env.*
 !.env.example
 *.pem
@@ -32,4 +34,3 @@ secrets/
 # Operating system files
 .DS_Store
 Thumbs.db
-

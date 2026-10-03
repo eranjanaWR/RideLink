@@ -18,6 +18,7 @@ public class Ride {
     private RideStatus status;
     private BigDecimal estimatedFare;
     private BigDecimal finalFare;
+    private String paymentId;
     private LocalDateTime requestedAt;
     private LocalDateTime assignedAt;
     private LocalDateTime acceptedAt;
@@ -99,6 +100,14 @@ public class Ride {
 
     public void setFinalFare(BigDecimal finalFare) {
         this.finalFare = finalFare;
+    }
+
+    public String getPaymentId() {
+        return paymentId;
+    }
+
+    public void setPaymentId(String paymentId) {
+        this.paymentId = paymentId;
     }
 
     public LocalDateTime getRequestedAt() {

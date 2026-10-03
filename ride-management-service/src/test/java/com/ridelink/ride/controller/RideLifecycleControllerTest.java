@@ -11,6 +11,7 @@ import com.ridelink.ride.exception.GlobalExceptionHandler;
 import com.ridelink.ride.exception.DriverServiceUnavailableException;
 import com.ridelink.ride.exception.InvalidDriverServiceResponseException;
 import com.ridelink.ride.integration.driver.DriverServiceClient;
+import com.ridelink.ride.integration.farepayment.FarePaymentServiceClient;
 import com.ridelink.ride.model.Ride;
 import com.ridelink.ride.model.RideStatus;
 import com.ridelink.ride.repository.RideRepository;
@@ -37,6 +38,9 @@ class RideLifecycleControllerTest {
 
     @MockitoBean
     private DriverServiceClient driverServiceClient;
+
+    @MockitoBean
+    private FarePaymentServiceClient farePaymentServiceClient;
 
     @BeforeEach
     void saveReturnsPersistedRide() {
