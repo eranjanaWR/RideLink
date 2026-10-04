@@ -23,6 +23,7 @@ import com.ridelink.ride.integration.farepayment.dto.PaymentStatus;
 import com.ridelink.ride.model.Ride;
 import com.ridelink.ride.model.RideStatus;
 import com.ridelink.ride.repository.RideRepository;
+import com.ridelink.ride.security.RideAuthorizationService;
 import com.ridelink.ride.service.RideService;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -31,6 +32,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
+import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
@@ -38,6 +40,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultActions;
 
 @WebMvcTest(RideController.class)
+@AutoConfigureMockMvc(addFilters = false)
 @Import({RideService.class, GlobalExceptionHandler.class})
 class RideCompletionWithPaymentControllerTest {
     @Autowired MockMvc mvc;
@@ -45,6 +48,7 @@ class RideCompletionWithPaymentControllerTest {
     @MockitoBean RideRepository rideRepository;
     @MockitoBean DriverServiceClient driverServiceClient;
     @MockitoBean FarePaymentServiceClient farePaymentServiceClient;
+    @MockitoBean RideAuthorizationService authorizationService;
 
     @BeforeEach
     void saveReturnsRide() {

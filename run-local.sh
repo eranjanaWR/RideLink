@@ -231,6 +231,7 @@ start_service \
   'ride-management-service' \
   "${RIDELINK_LOG_DIR}/ride.log" \
   "MONGODB_URI=${RIDE_MONGODB_URI}" \
+  "JWT_SECRET=${JWT_SECRET}" \
   "INTERNAL_SERVICE_KEY=${INTERNAL_SERVICE_KEY}" \
   "SERVER_PORT=${RIDE_PORT}" \
   "DRIVER_SERVICE_URL=http://localhost:${DRIVER_PORT}" \

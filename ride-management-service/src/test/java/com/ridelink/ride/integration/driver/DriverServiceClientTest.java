@@ -12,9 +12,11 @@ import static org.springframework.test.web.client.response.MockRestResponseCreat
 
 import com.ridelink.ride.exception.DriverServiceUnavailableException;
 import com.ridelink.ride.exception.InvalidDriverServiceResponseException;
+import com.ridelink.ride.integration.driver.dto.DriverProfileOwnershipResponse;
 import com.ridelink.ride.integration.driver.dto.EligibleDriverResponse;
 import java.io.IOException;
 import java.util.List;
+import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -30,6 +32,7 @@ import org.springframework.web.client.RestClient;
 class DriverServiceClientTest {
 
     private static final String TEST_INTERNAL_SERVICE_KEY = "test-only-internal-service-key";
+    private static final String TEST_BEARER_AUTHORIZATION = "Bearer test-only-forwarded-jwt";
 
     private MockRestServiceServer server;
     private DriverServiceClient client;
@@ -253,6 +256,144 @@ class DriverServiceClientTest {
         client.getEligibleDrivers("Colombo");
 
         assertThat(output).doesNotContain(TEST_INTERNAL_SERVICE_KEY);
+        server.verify();
+    }
+
+    @Test
+    void ownershipLookupForwardsUserBearerTokenWithoutInternalServiceKey() {
+        server.expect(requestTo("http://driver-service.test/api/drivers/account/account-driver-1"))
+                .andExpect(method(HttpMethod.GET))
+                .andExpect(header("Authorization", TEST_BEARER_AUTHORIZATION))
+                .andExpect(request -> assertThat(request.getHeaders())
+                        .doesNotContainKey("X-Internal-Service-Key"))
+                .andRespond(withSuccess("""
+                        {"id":"driver-1","accountId":"account-driver-1"}
+                        """, MediaType.APPLICATION_JSON));
+
+        Optional<DriverProfileOwnershipResponse> response =
+                client.getDriverByAccountIdForUser(
+                        "account-driver-1",
+                        TEST_BEARER_AUTHORIZATION);
+
+        assertThat(response).isPresent();
+        assertThat(response.orElseThrow().id()).isEqualTo("driver-1");
+        assertThat(response.orElseThrow().accountId()).isEqualTo("account-driver-1");
+        server.verify();
+    }
+
+    @Test
+    void ownershipLookupTreatsNotFoundAsNoOperationalProfile() {
+        server.expect(requestTo("http://driver-service.test/api/drivers/account/missing-account"))
+                .andRespond(withStatus(HttpStatus.NOT_FOUND));
+
+        Optional<DriverProfileOwnershipResponse> response =
+                client.getDriverByAccountIdForUser(
+                        "missing-account",
+                        TEST_BEARER_AUTHORIZATION);
+
+        assertThat(response).isEmpty();
+        server.verify();
+    }
+
+    @Test
+    void ownershipLookupMapsUnauthorizedToUnavailable() {
+        server.expect(requestTo("http://driver-service.test/api/drivers/account/account-driver-1"))
+                .andRespond(withStatus(HttpStatus.UNAUTHORIZED));
+
+        assertThatThrownBy(() -> client.getDriverByAccountIdForUser(
+                "account-driver-1",
+                TEST_BEARER_AUTHORIZATION))
+                .isInstanceOf(DriverServiceUnavailableException.class);
+        server.verify();
+    }
+
+    @Test
+    void ownershipLookupMapsForbiddenToUnavailable() {
+        server.expect(requestTo("http://driver-service.test/api/drivers/account/account-driver-1"))
+                .andRespond(withStatus(HttpStatus.FORBIDDEN));
+
+        assertThatThrownBy(() -> client.getDriverByAccountIdForUser(
+                "account-driver-1",
+                TEST_BEARER_AUTHORIZATION))
+                .isInstanceOf(DriverServiceUnavailableException.class);
+        server.verify();
+    }
+
+    @Test
+    void ownershipLookupMapsServerErrorToUnavailable() {
+        server.expect(requestTo("http://driver-service.test/api/drivers/account/account-driver-1"))
+                .andRespond(withStatus(HttpStatus.SERVICE_UNAVAILABLE));
+
+        assertThatThrownBy(() -> client.getDriverByAccountIdForUser(
+                "account-driver-1",
+                TEST_BEARER_AUTHORIZATION))
+                .isInstanceOf(DriverServiceUnavailableException.class);
+        server.verify();
+    }
+
+    @Test
+    void ownershipLookupMapsNetworkFailureToUnavailableWithoutLeakingDetails() {
+        server.expect(requestTo("http://driver-service.test/api/drivers/account/account-driver-1"))
+                .andRespond(withException(new IOException("secret network details")));
+
+        assertThatThrownBy(() -> client.getDriverByAccountIdForUser(
+                "account-driver-1",
+                TEST_BEARER_AUTHORIZATION))
+                .isInstanceOf(DriverServiceUnavailableException.class)
+                .hasMessageNotContaining("secret network details");
+        server.verify();
+    }
+
+    @Test
+    void ownershipLookupRejectsMalformedJson() {
+        server.expect(requestTo("http://driver-service.test/api/drivers/account/account-driver-1"))
+                .andRespond(withSuccess("{not-json", MediaType.APPLICATION_JSON));
+
+        assertThatThrownBy(() -> client.getDriverByAccountIdForUser(
+                "account-driver-1",
+                TEST_BEARER_AUTHORIZATION))
+                .isInstanceOf(InvalidDriverServiceResponseException.class);
+        server.verify();
+    }
+
+    @Test
+    void ownershipLookupRejectsMissingBody() {
+        server.expect(requestTo("http://driver-service.test/api/drivers/account/account-driver-1"))
+                .andRespond(withStatus(HttpStatus.OK));
+
+        assertThatThrownBy(() -> client.getDriverByAccountIdForUser(
+                "account-driver-1",
+                TEST_BEARER_AUTHORIZATION))
+                .isInstanceOf(InvalidDriverServiceResponseException.class);
+        server.verify();
+    }
+
+    @Test
+    void ownershipLookupRejectsMismatchedAccount() {
+        server.expect(requestTo("http://driver-service.test/api/drivers/account/account-driver-1"))
+                .andRespond(withSuccess("""
+                        {"id":"driver-1","accountId":"different-account"}
+                        """, MediaType.APPLICATION_JSON));
+
+        assertThatThrownBy(() -> client.getDriverByAccountIdForUser(
+                "account-driver-1",
+                TEST_BEARER_AUTHORIZATION))
+                .isInstanceOf(InvalidDriverServiceResponseException.class);
+        server.verify();
+    }
+
+    @Test
+    void ownershipLookupDoesNotLogForwardedBearerToken(CapturedOutput output) {
+        server.expect(requestTo("http://driver-service.test/api/drivers/account/account-driver-1"))
+                .andRespond(withSuccess("""
+                        {"id":"driver-1","accountId":"account-driver-1"}
+                        """, MediaType.APPLICATION_JSON));
+
+        client.getDriverByAccountIdForUser(
+                "account-driver-1",
+                TEST_BEARER_AUTHORIZATION);
+
+        assertThat(output).doesNotContain(TEST_BEARER_AUTHORIZATION);
         server.verify();
     }
 }

@@ -284,6 +284,7 @@ try {
         -LogName 'ride.log' `
         -Environment @{
             MONGODB_URI = $Configuration['RIDE_MONGODB_URI']
+            JWT_SECRET = $Configuration['JWT_SECRET']
             INTERNAL_SERVICE_KEY = $Configuration['INTERNAL_SERVICE_KEY']
             SERVER_PORT = $Configuration['RIDE_PORT']
             DRIVER_SERVICE_URL = "http://localhost:$($Configuration['DRIVER_PORT'])"
