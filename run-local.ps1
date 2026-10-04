@@ -275,6 +275,8 @@ try {
         -LogName 'fare-payment.log' `
         -Environment @{
             MONGODB_URI = $Configuration['FARE_PAYMENT_MONGODB_URI']
+            JWT_SECRET = $Configuration['JWT_SECRET']
+            INTERNAL_SERVICE_KEY = $Configuration['INTERNAL_SERVICE_KEY']
             SERVER_PORT = $Configuration['PAYMENT_PORT']
         }
 

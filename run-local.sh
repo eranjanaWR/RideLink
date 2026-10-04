@@ -224,6 +224,8 @@ start_service \
   'fare-and-payment-service' \
   "${RIDELINK_LOG_DIR}/fare-payment.log" \
   "MONGODB_URI=${FARE_PAYMENT_MONGODB_URI}" \
+  "JWT_SECRET=${JWT_SECRET}" \
+  "INTERNAL_SERVICE_KEY=${INTERNAL_SERVICE_KEY}" \
   "SERVER_PORT=${PAYMENT_PORT}"
 
 start_service \

@@ -8,6 +8,7 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -20,6 +21,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 @RequestMapping("/api/fares")
+@SecurityRequirement(name = "bearerAuth")
 public class FareController {
     private final FareEstimationService fareEstimationService;
 
@@ -27,8 +29,9 @@ public class FareController {
         this.fareEstimationService = fareEstimationService;
     }
 
-    @Operation(summary = "Create fare estimate", description = "The caller supplies simulated distanceKm; no external map service is used. "
-            + "The deterministic fare uses BigDecimal with configurable currency and rates.")
+    @Operation(summary = "Create fare estimate", description = "PASSENGER, DRIVER, or ADMIN JWT required. "
+            + "The caller supplies simulated distanceKm; no external map service is used. The deterministic fare "
+            + "uses BigDecimal with configurable currency and rates.")
     @ApiResponse(responseCode = "201", description = "Fare estimate created",
             content = @Content(schema = @Schema(implementation = FareEstimateResponse.class)))
     @ApiResponse(responseCode = "400", description = "Invalid fare request",
@@ -40,7 +43,8 @@ public class FareController {
         return ResponseEntity.status(HttpStatus.CREATED).body(fareEstimationService.estimate(request));
     }
 
-    @Operation(summary = "Get fare estimate", description = "Retrieve a persisted fare estimate by its ID.")
+    @Operation(summary = "Get fare estimate", description = "PASSENGER, DRIVER, or ADMIN JWT required. "
+            + "Retrieve a persisted fare estimate by its ID.")
     @ApiResponse(responseCode = "200", description = "Fare estimate retrieved",
             content = @Content(schema = @Schema(implementation = FareEstimateResponse.class)))
     @ApiResponse(responseCode = "404", description = "Fare estimate not found",
