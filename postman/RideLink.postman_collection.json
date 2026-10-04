@@ -1,0 +1,482 @@
+{
+  "info": {
+    "_postman_id": "8bb630f4-78b4-4a5a-a16d-55820e56de65",
+    "name": "RideLink",
+    "description": "Secured RideLink backend demonstration. Select the RideLink Local environment and set demoPassword locally. Tokens and IDs are captured without being logged. Final fare and payment creation are normally performed through Ride complete-with-payment.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "if (!pm.environment.get('runSuffix')) {",
+          "  const suffix = Date.now().toString();",
+          "  const phoneTail = suffix.slice(-6);",
+          "  pm.environment.set('runSuffix', suffix);",
+          "  pm.environment.set('passengerEmail', `passenger-${suffix}@example.test`);",
+          "  pm.environment.set('driverEmail', `driver-${suffix}@example.test`);",
+          "  pm.environment.set('passengerPhone', `+94710${phoneTail}1`);",
+          "  pm.environment.set('driverPhone', `+94710${phoneTail}2`);",
+          "  pm.environment.set('serviceArea', `DemoArea-${suffix}`);",
+          "  pm.environment.set('licenseNumber', `DEMO-LIC-${suffix}`);",
+          "  pm.environment.set('registrationNumber', `DEMO-CAR-${suffix}`);",
+          "}"
+        ]
+      }
+    }
+  ],
+  "item": [
+    {
+      "name": "01 - Account",
+      "description": "Public registration supports PASSENGER and DRIVER. Profile access is owner-or-ADMIN. PATCH /api/accounts/{accountId}/status is documented by Account OpenAPI but intentionally omitted here because it requires a legitimate ADMIN token.",
+      "item": [
+        {
+          "name": "Register PASSENGER",
+          "request": {
+            "method": "POST",
+            "auth": { "type": "noauth" },
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"fullName\": \"Demo Passenger\",\n  \"email\": \"{{passengerEmail}}\",\n  \"phone\": \"{{passengerPhone}}\",\n  \"password\": \"{{demoPassword}}\",\n  \"role\": \"PASSENGER\"\n}", "options": { "raw": { "language": "json" } } },
+            "url": "{{accountBaseUrl}}/api/auth/register"
+          },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Status is 201', () => pm.response.to.have.status(201));", "const body = pm.response.json();", "pm.expect(body.id).to.be.a('string').and.not.empty;", "pm.environment.set('passengerId', body.id);"] } }]
+        },
+        {
+          "name": "Register DRIVER",
+          "request": {
+            "method": "POST",
+            "auth": { "type": "noauth" },
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"fullName\": \"Demo Driver\",\n  \"email\": \"{{driverEmail}}\",\n  \"phone\": \"{{driverPhone}}\",\n  \"password\": \"{{demoPassword}}\",\n  \"role\": \"DRIVER\"\n}", "options": { "raw": { "language": "json" } } },
+            "url": "{{accountBaseUrl}}/api/auth/register"
+          },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Status is 201', () => pm.response.to.have.status(201));", "const body = pm.response.json();", "pm.expect(body.id).to.be.a('string').and.not.empty;", "pm.environment.set('driverAccountId', body.id);"] } }]
+        },
+        {
+          "name": "Login PASSENGER",
+          "request": {
+            "method": "POST",
+            "auth": { "type": "noauth" },
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"email\": \"{{passengerEmail}}\",\n  \"password\": \"{{demoPassword}}\"\n}", "options": { "raw": { "language": "json" } } },
+            "url": "{{accountBaseUrl}}/api/auth/login"
+          },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Status is 200', () => pm.response.to.have.status(200));", "const body = pm.response.json();", "pm.expect(body.tokenType).to.eql('Bearer');", "pm.expect(body.accessToken).to.be.a('string').and.not.empty;", "pm.environment.set('passengerToken', body.accessToken);", "pm.environment.set('passengerId', body.account.id);"] } }]
+        },
+        {
+          "name": "Login DRIVER",
+          "request": {
+            "method": "POST",
+            "auth": { "type": "noauth" },
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"email\": \"{{driverEmail}}\",\n  \"password\": \"{{demoPassword}}\"\n}", "options": { "raw": { "language": "json" } } },
+            "url": "{{accountBaseUrl}}/api/auth/login"
+          },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Status is 200', () => pm.response.to.have.status(200));", "const body = pm.response.json();", "pm.expect(body.tokenType).to.eql('Bearer');", "pm.expect(body.accessToken).to.be.a('string').and.not.empty;", "pm.environment.set('driverToken', body.accessToken);", "pm.environment.set('driverAccountId', body.account.id);"] } }]
+        },
+        {
+          "name": "Get own profile",
+          "request": { "method": "GET", "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{passengerToken}}", "type": "string" }] }, "url": "{{accountBaseUrl}}/api/accounts/{{passengerId}}" },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Status is 200', () => pm.response.to.have.status(200));", "pm.expect(pm.response.json().id).to.eql(pm.environment.get('passengerId'));"] } }]
+        },
+        {
+          "name": "Update own profile",
+          "request": {
+            "method": "PUT",
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{passengerToken}}", "type": "string" }] },
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"fullName\": \"Demo Passenger Updated\",\n  \"phone\": \"{{passengerPhone}}\"\n}", "options": { "raw": { "language": "json" } } },
+            "url": "{{accountBaseUrl}}/api/accounts/{{passengerId}}"
+          },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Status is 200', () => pm.response.to.have.status(200));"] } }]
+        },
+        {
+          "name": "Cross-account access forbidden example",
+          "request": { "method": "GET", "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{passengerToken}}", "type": "string" }] }, "url": "{{accountBaseUrl}}/api/accounts/{{driverAccountId}}", "description": "A passenger attempts to read the driver's account profile." },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Status is 403', () => pm.response.to.have.status(403));"] } }]
+        },
+        {
+          "name": "Invalid login example",
+          "request": {
+            "method": "POST",
+            "auth": { "type": "noauth" },
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"email\": \"{{passengerEmail}}\",\n  \"password\": \"intentionally-invalid-demo-value\"\n}", "options": { "raw": { "language": "json" } } },
+            "url": "{{accountBaseUrl}}/api/auth/login"
+          },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Status is 401', () => pm.response.to.have.status(401));"] } }]
+        }
+      ]
+    },
+    {
+      "name": "02 - Driver & Vehicle",
+      "item": [
+        {
+          "name": "Create driver profile",
+          "request": {
+            "method": "POST",
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{driverToken}}", "type": "string" }] },
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"accountId\": \"{{driverAccountId}}\",\n  \"licenseNumber\": \"{{licenseNumber}}\",\n  \"serviceArea\": \"{{serviceArea}}\"\n}", "options": { "raw": { "language": "json" } } },
+            "url": "{{driverBaseUrl}}/api/drivers"
+          },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Status is 201', () => pm.response.to.have.status(201));", "const body = pm.response.json();", "pm.expect(body.id).to.be.a('string').and.not.empty;", "pm.environment.set('driverProfileId', body.id);"] } }]
+        },
+        {
+          "name": "Get driver profile by ID",
+          "request": { "method": "GET", "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{driverToken}}", "type": "string" }] }, "url": "{{driverBaseUrl}}/api/drivers/{{driverProfileId}}" },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Status is 200', () => pm.response.to.have.status(200));"] } }]
+        },
+        {
+          "name": "Get driver profile by account ID",
+          "request": { "method": "GET", "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{driverToken}}", "type": "string" }] }, "url": "{{driverBaseUrl}}/api/drivers/account/{{driverAccountId}}" },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Status is 200', () => pm.response.to.have.status(200));"] } }]
+        },
+        {
+          "name": "Update driver profile",
+          "request": {
+            "method": "PUT",
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{driverToken}}", "type": "string" }] },
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"licenseNumber\": \"{{licenseNumber}}\",\n  \"serviceArea\": \"{{serviceArea}}\"\n}", "options": { "raw": { "language": "json" } } },
+            "url": "{{driverBaseUrl}}/api/drivers/{{driverProfileId}}"
+          },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Status is 200', () => pm.response.to.have.status(200));"] } }]
+        },
+        {
+          "name": "Update driver location",
+          "request": {
+            "method": "PATCH",
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{driverToken}}", "type": "string" }] },
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"latitude\": 6.9271,\n  \"longitude\": 79.8612\n}", "options": { "raw": { "language": "json" } } },
+            "url": "{{driverBaseUrl}}/api/drivers/{{driverProfileId}}/location"
+          },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Status is 200', () => pm.response.to.have.status(200));"] } }]
+        },
+        {
+          "name": "Update availability",
+          "request": {
+            "method": "PATCH",
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{driverToken}}", "type": "string" }] },
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"availabilityStatus\": \"AVAILABLE\"\n}", "options": { "raw": { "language": "json" } } },
+            "url": "{{driverBaseUrl}}/api/drivers/{{driverProfileId}}/availability"
+          },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Status is 200', () => pm.response.to.have.status(200));", "pm.expect(pm.response.json().availabilityStatus).to.eql('AVAILABLE');"] } }]
+        },
+        {
+          "name": "Create vehicle",
+          "request": {
+            "method": "POST",
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{driverToken}}", "type": "string" }] },
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"driverId\": \"{{driverProfileId}}\",\n  \"registrationNumber\": \"{{registrationNumber}}\",\n  \"make\": \"Toyota\",\n  \"model\": \"Aqua\",\n  \"color\": \"White\",\n  \"vehicleType\": \"CAR\"\n}", "options": { "raw": { "language": "json" } } },
+            "url": "{{driverBaseUrl}}/api/vehicles"
+          },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Status is 201', () => pm.response.to.have.status(201));", "const body = pm.response.json();", "pm.expect(body.id).to.be.a('string').and.not.empty;", "pm.environment.set('vehicleId', body.id);"] } }]
+        },
+        {
+          "name": "Get vehicle",
+          "request": { "method": "GET", "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{driverToken}}", "type": "string" }] }, "url": "{{driverBaseUrl}}/api/vehicles/{{vehicleId}}" },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Status is 200', () => pm.response.to.have.status(200));"] } }]
+        },
+        {
+          "name": "List vehicles by driver",
+          "request": { "method": "GET", "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{driverToken}}", "type": "string" }] }, "url": "{{driverBaseUrl}}/api/vehicles/driver/{{driverProfileId}}" },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Status is 200', () => pm.response.to.have.status(200));", "pm.expect(pm.response.json()).to.be.an('array');"] } }]
+        },
+        {
+          "name": "Update vehicle",
+          "request": {
+            "method": "PUT",
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{driverToken}}", "type": "string" }] },
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"registrationNumber\": \"{{registrationNumber}}\",\n  \"make\": \"Toyota\",\n  \"model\": \"Aqua\",\n  \"color\": \"Silver\",\n  \"vehicleType\": \"CAR\"\n}", "options": { "raw": { "language": "json" } } },
+            "url": "{{driverBaseUrl}}/api/vehicles/{{vehicleId}}",
+            "description": "Supported vehicleType values: CAR, VAN, THREE_WHEELER, MOTORBIKE."
+          },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Status is 200', () => pm.response.to.have.status(200));"] } }]
+        },
+        {
+          "name": "Delete vehicle",
+          "request": { "method": "DELETE", "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{driverToken}}", "type": "string" }] }, "url": "{{driverBaseUrl}}/api/vehicles/{{vehicleId}}", "description": "Destructive demonstration request. Run only after all ride demonstrations are complete." },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Status is 204', () => pm.response.to.have.status(204));"] } }]
+        },
+        {
+          "name": "Eligible driver search",
+          "request": { "method": "GET", "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{passengerToken}}", "type": "string" }] }, "url": "{{driverBaseUrl}}/api/drivers/eligible?serviceArea={{serviceArea}}" },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Status is 200', () => pm.response.to.have.status(200));", "pm.expect(pm.response.json()).to.be.an('array');"] } }]
+        }
+      ]
+    },
+    {
+      "name": "03 - Ride Management",
+      "description": "Passenger-owned operations use passengerToken. Assigned-driver lifecycle operations use driverToken.",
+      "item": [
+        {
+          "name": "Create ride",
+          "request": {
+            "method": "POST",
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{passengerToken}}", "type": "string" }] },
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"passengerId\": \"{{passengerId}}\",\n  \"pickupLocation\": \"Colombo Fort\",\n  \"destinationLocation\": \"Bambalapitiya\",\n  \"serviceArea\": \"{{serviceArea}}\"\n}", "options": { "raw": { "language": "json" } } },
+            "url": "{{rideBaseUrl}}/api/rides"
+          },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Status is 201', () => pm.response.to.have.status(201));", "const body = pm.response.json();", "pm.expect(body.id).to.be.a('string').and.not.empty;", "pm.environment.set('rideId', body.id);"] } }]
+        },
+        {
+          "name": "Get ride",
+          "request": { "method": "GET", "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{passengerToken}}", "type": "string" }] }, "url": "{{rideBaseUrl}}/api/rides/{{rideId}}" },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Status is 200', () => pm.response.to.have.status(200));"] } }]
+        },
+        {
+          "name": "Get passenger rides",
+          "request": { "method": "GET", "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{passengerToken}}", "type": "string" }] }, "url": "{{rideBaseUrl}}/api/rides/passenger/{{passengerId}}" },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Status is 200', () => pm.response.to.have.status(200));", "pm.expect(pm.response.json()).to.be.an('array');"] } }]
+        },
+        {
+          "name": "Assign driver",
+          "request": { "method": "POST", "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{passengerToken}}", "type": "string" }] }, "url": "{{rideBaseUrl}}/api/rides/{{rideId}}/assign" },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Status is 200', () => pm.response.to.have.status(200));", "pm.expect(pm.response.json().status).to.eql('ASSIGNED');"] } }]
+        },
+        {
+          "name": "Accept ride",
+          "request": { "method": "POST", "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{driverToken}}", "type": "string" }] }, "url": "{{rideBaseUrl}}/api/rides/{{rideId}}/accept" },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Status is 200', () => pm.response.to.have.status(200));", "pm.expect(pm.response.json().status).to.eql('ACCEPTED');"] } }]
+        },
+        {
+          "name": "Start ride",
+          "request": { "method": "POST", "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{driverToken}}", "type": "string" }] }, "url": "{{rideBaseUrl}}/api/rides/{{rideId}}/start" },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Status is 200', () => pm.response.to.have.status(200));", "pm.expect(pm.response.json().status).to.eql('IN_PROGRESS');"] } }]
+        },
+        {
+          "name": "Complete ride",
+          "request": { "method": "POST", "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{driverToken}}", "type": "string" }] }, "url": "{{rideBaseUrl}}/api/rides/{{rideId}}/complete", "description": "Completes without fare/payment. Use on a separate IN_PROGRESS ride, not before Complete with payment." },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Status is 200', () => pm.response.to.have.status(200));", "pm.expect(pm.response.json().status).to.eql('COMPLETED');"] } }]
+        },
+        {
+          "name": "Cancel ride",
+          "request": { "method": "POST", "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{passengerToken}}", "type": "string" }] }, "url": "{{rideBaseUrl}}/api/rides/{{rideId}}/cancel", "description": "Run on a separate REQUESTED, ASSIGNED, or ACCEPTED ride." },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Status is 200', () => pm.response.to.have.status(200));", "pm.expect(pm.response.json().status).to.eql('CANCELLED');"] } }]
+        },
+        {
+          "name": "Complete with payment",
+          "request": {
+            "method": "POST",
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{driverToken}}", "type": "string" }] },
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"distanceKm\": 12.5,\n  \"paymentMethod\": \"CARD\"\n}", "options": { "raw": { "language": "json" } } },
+            "url": "{{rideBaseUrl}}/api/rides/{{rideId}}/complete-with-payment",
+            "description": "Normal integrated path for final-fare and PENDING payment creation. Ride authenticates to downstream services internally."
+          },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Status is 200', () => pm.response.to.have.status(200));", "const body = pm.response.json();", "pm.expect(body.status).to.eql('COMPLETED');", "pm.expect(Number(body.finalFare)).to.be.above(0);", "pm.expect(body.paymentId).to.be.a('string').and.not.empty;", "pm.environment.set('paymentId', body.paymentId);"] } }]
+        }
+      ]
+    },
+    {
+      "name": "04 - Fare",
+      "description": "Fare estimates accept ACTIVE PASSENGER, DRIVER, or ADMIN JWTs. Direct final-fare create/retrieval endpoints require a legitimate ADMIN token or trusted internal service key and are intentionally not runnable here. Normal final-fare creation is demonstrated through Ride complete-with-payment; no internal key is stored in Postman.",
+      "item": [
+        {
+          "name": "Create fare estimate",
+          "request": {
+            "method": "POST",
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{passengerToken}}", "type": "string" }] },
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"pickupLocation\": \"Colombo Fort\",\n  \"destinationLocation\": \"Bambalapitiya\",\n  \"distanceKm\": 12.5\n}", "options": { "raw": { "language": "json" } } },
+            "url": "{{fareBaseUrl}}/api/fares/estimate"
+          },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Status is 201', () => pm.response.to.have.status(201));", "const body = pm.response.json();", "pm.expect(body.id).to.be.a('string').and.not.empty;", "pm.expect(Number(body.estimatedFare)).to.be.above(0);", "pm.environment.set('estimateId', body.id);"] } }]
+        },
+        {
+          "name": "Get fare estimate",
+          "request": { "method": "GET", "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{passengerToken}}", "type": "string" }] }, "url": "{{fareBaseUrl}}/api/fares/estimates/{{estimateId}}" },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Status is 200', () => pm.response.to.have.status(200));", "pm.expect(pm.response.json().id).to.eql(pm.environment.get('estimateId'));"] } }]
+        }
+      ]
+    },
+    {
+      "name": "05 - Payment",
+      "description": "Payment retrieval and transitions allow the owning PASSENGER, ADMIN, or trusted internal service. Direct POST /api/payments is ADMIN/internal only and intentionally omitted. Create payments through Ride complete-with-payment.",
+      "item": [
+        {
+          "name": "Get payment by ID",
+          "request": { "method": "GET", "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{passengerToken}}", "type": "string" }] }, "url": "{{fareBaseUrl}}/api/payments/{{paymentId}}" },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Status is 200', () => pm.response.to.have.status(200));", "const body = pm.response.json();", "pm.expect(body.id).to.eql(pm.environment.get('paymentId'));", "pm.expect(body.passengerId).to.eql(pm.environment.get('passengerId'));"] } }]
+        },
+        {
+          "name": "Get payment by ride ID",
+          "request": { "method": "GET", "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{passengerToken}}", "type": "string" }] }, "url": "{{fareBaseUrl}}/api/payments/ride/{{rideId}}" },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Status is 200', () => pm.response.to.have.status(200));", "pm.expect(pm.response.json().id).to.eql(pm.environment.get('paymentId'));"] } }]
+        },
+        {
+          "name": "Complete payment",
+          "request": { "method": "POST", "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{passengerToken}}", "type": "string" }] }, "url": "{{fareBaseUrl}}/api/payments/{{paymentId}}/complete", "description": "Run only while the payment is PENDING." },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Status is 200', () => pm.response.to.have.status(200));", "pm.expect(pm.response.json().status).to.eql('COMPLETED');"] } }]
+        },
+        {
+          "name": "Fail payment",
+          "request": { "method": "POST", "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{passengerToken}}", "type": "string" }] }, "url": "{{fareBaseUrl}}/api/payments/{{paymentId}}/fail", "description": "Alternative to Complete payment. Run only on a separate PENDING payment." },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Status is 200', () => pm.response.to.have.status(200));", "pm.expect(pm.response.json().status).to.eql('FAILED');"] } }]
+        }
+      ]
+    },
+    {
+      "name": "06 - Security / Error Cases",
+      "description": "Representative safe error demonstrations. Run the end-to-end flow first for populated IDs and completed lifecycle state.",
+      "item": [
+        {
+          "name": "401 - Missing JWT",
+          "request": { "method": "GET", "auth": { "type": "noauth" }, "url": "{{driverBaseUrl}}/api/drivers/{{driverProfileId}}" },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Status is 401', () => pm.response.to.have.status(401));", "pm.expect(pm.response.headers.get('Content-Type')).to.include('application/json');"] } }]
+        },
+        {
+          "name": "401 - Malformed JWT",
+          "request": { "method": "GET", "header": [{ "key": "Authorization", "value": "Bearer obviously-malformed-token" }], "url": "{{fareBaseUrl}}/api/fares/estimates/not-a-real-estimate" },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Status is 401', () => pm.response.to.have.status(401));", "pm.expect(pm.response.headers.get('Content-Type')).to.include('application/json');"] } }]
+        },
+        {
+          "name": "403 - Wrong role",
+          "request": {
+            "method": "POST",
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{passengerToken}}", "type": "string" }] },
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"accountId\": \"{{passengerId}}\",\n  \"licenseNumber\": \"DENIED-{{runSuffix}}\",\n  \"serviceArea\": \"{{serviceArea}}\"\n}", "options": { "raw": { "language": "json" } } },
+            "url": "{{driverBaseUrl}}/api/drivers"
+          },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Status is 403', () => pm.response.to.have.status(403));"] } }]
+        },
+        {
+          "name": "403 - Ownership violation",
+          "request": { "method": "GET", "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{passengerToken}}", "type": "string" }] }, "url": "{{accountBaseUrl}}/api/accounts/{{driverAccountId}}" },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Status is 403', () => pm.response.to.have.status(403));"] } }]
+        },
+        {
+          "name": "409 - Invalid ride lifecycle transition",
+          "request": { "method": "POST", "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{driverToken}}", "type": "string" }] }, "url": "{{rideBaseUrl}}/api/rides/{{rideId}}/accept", "description": "After the end-to-end workflow completes the ride, accepting it again is an invalid transition." },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Status is 409', () => pm.response.to.have.status(409));"] } }]
+        },
+        {
+          "name": "409 - Duplicate registration",
+          "request": {
+            "method": "POST",
+            "auth": { "type": "noauth" },
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"fullName\": \"Demo Passenger\",\n  \"email\": \"{{passengerEmail}}\",\n  \"phone\": \"{{passengerPhone}}\",\n  \"password\": \"{{demoPassword}}\",\n  \"role\": \"PASSENGER\"\n}", "options": { "raw": { "language": "json" } } },
+            "url": "{{accountBaseUrl}}/api/auth/register"
+          },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Status is 409', () => pm.response.to.have.status(409));"] } }]
+        },
+        {
+          "name": "Public OpenAPI - Account",
+          "request": { "method": "GET", "auth": { "type": "noauth" }, "url": "{{accountBaseUrl}}/v3/api-docs" },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Status is 200', () => pm.response.to.have.status(200));", "pm.expect(pm.response.json().openapi).to.be.a('string');"] } }]
+        },
+        {
+          "name": "Public OpenAPI - Driver & Vehicle",
+          "request": { "method": "GET", "auth": { "type": "noauth" }, "url": "{{driverBaseUrl}}/v3/api-docs" },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Status is 200', () => pm.response.to.have.status(200));", "pm.expect(pm.response.json().openapi).to.be.a('string');"] } }]
+        },
+        {
+          "name": "Public OpenAPI - Ride",
+          "request": { "method": "GET", "auth": { "type": "noauth" }, "url": "{{rideBaseUrl}}/v3/api-docs" },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Status is 200', () => pm.response.to.have.status(200));", "pm.expect(pm.response.json().openapi).to.be.a('string');"] } }]
+        },
+        {
+          "name": "Public OpenAPI - Fare & Payment",
+          "request": { "method": "GET", "auth": { "type": "noauth" }, "url": "{{fareBaseUrl}}/v3/api-docs" },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Status is 200', () => pm.response.to.have.status(200));", "pm.expect(pm.response.json().openapi).to.be.a('string');"] } }]
+        }
+      ]
+    },
+    {
+      "name": "07 - End-to-End Demo",
+      "description": "Run in order with a fresh environment. Set demoPassword, then clear runSuffix, tokens, and IDs before starting a new demonstration.",
+      "item": [
+        {
+          "name": "01 Register Passenger",
+          "request": { "method": "POST", "auth": { "type": "noauth" }, "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"fullName\": \"Demo Passenger\",\n  \"email\": \"{{passengerEmail}}\",\n  \"phone\": \"{{passengerPhone}}\",\n  \"password\": \"{{demoPassword}}\",\n  \"role\": \"PASSENGER\"\n}", "options": { "raw": { "language": "json" } } }, "url": "{{accountBaseUrl}}/api/auth/register" },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Status is 201', () => pm.response.to.have.status(201));", "const body = pm.response.json();", "pm.environment.set('passengerId', body.id);"] } }]
+        },
+        {
+          "name": "02 Register Driver",
+          "request": { "method": "POST", "auth": { "type": "noauth" }, "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"fullName\": \"Demo Driver\",\n  \"email\": \"{{driverEmail}}\",\n  \"phone\": \"{{driverPhone}}\",\n  \"password\": \"{{demoPassword}}\",\n  \"role\": \"DRIVER\"\n}", "options": { "raw": { "language": "json" } } }, "url": "{{accountBaseUrl}}/api/auth/register" },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Status is 201', () => pm.response.to.have.status(201));", "const body = pm.response.json();", "pm.environment.set('driverAccountId', body.id);"] } }]
+        },
+        {
+          "name": "03 Login Passenger",
+          "request": { "method": "POST", "auth": { "type": "noauth" }, "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"email\": \"{{passengerEmail}}\",\n  \"password\": \"{{demoPassword}}\"\n}", "options": { "raw": { "language": "json" } } }, "url": "{{accountBaseUrl}}/api/auth/login" },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Status is 200', () => pm.response.to.have.status(200));", "const body = pm.response.json();", "pm.expect(body.tokenType).to.eql('Bearer');", "pm.environment.set('passengerToken', body.accessToken);", "pm.environment.set('passengerId', body.account.id);"] } }]
+        },
+        {
+          "name": "04 Login Driver",
+          "request": { "method": "POST", "auth": { "type": "noauth" }, "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"email\": \"{{driverEmail}}\",\n  \"password\": \"{{demoPassword}}\"\n}", "options": { "raw": { "language": "json" } } }, "url": "{{accountBaseUrl}}/api/auth/login" },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Status is 200', () => pm.response.to.have.status(200));", "const body = pm.response.json();", "pm.expect(body.tokenType).to.eql('Bearer');", "pm.environment.set('driverToken', body.accessToken);", "pm.environment.set('driverAccountId', body.account.id);"] } }]
+        },
+        {
+          "name": "05 Create Driver Profile",
+          "request": { "method": "POST", "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{driverToken}}", "type": "string" }] }, "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"accountId\": \"{{driverAccountId}}\",\n  \"licenseNumber\": \"{{licenseNumber}}\",\n  \"serviceArea\": \"{{serviceArea}}\"\n}", "options": { "raw": { "language": "json" } } }, "url": "{{driverBaseUrl}}/api/drivers" },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Status is 201', () => pm.response.to.have.status(201));", "const body = pm.response.json();", "pm.environment.set('driverProfileId', body.id);"] } }]
+        },
+        {
+          "name": "06 Set Driver Location",
+          "request": { "method": "PATCH", "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{driverToken}}", "type": "string" }] }, "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"latitude\": 6.9271,\n  \"longitude\": 79.8612\n}", "options": { "raw": { "language": "json" } } }, "url": "{{driverBaseUrl}}/api/drivers/{{driverProfileId}}/location" },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Status is 200', () => pm.response.to.have.status(200));"] } }]
+        },
+        {
+          "name": "07 Set Driver AVAILABLE",
+          "request": { "method": "PATCH", "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{driverToken}}", "type": "string" }] }, "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"availabilityStatus\": \"AVAILABLE\"\n}", "options": { "raw": { "language": "json" } } }, "url": "{{driverBaseUrl}}/api/drivers/{{driverProfileId}}/availability" },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Status is 200', () => pm.response.to.have.status(200));", "pm.expect(pm.response.json().availabilityStatus).to.eql('AVAILABLE');"] } }]
+        },
+        {
+          "name": "08 Create Vehicle",
+          "request": { "method": "POST", "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{driverToken}}", "type": "string" }] }, "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"driverId\": \"{{driverProfileId}}\",\n  \"registrationNumber\": \"{{registrationNumber}}\",\n  \"make\": \"Toyota\",\n  \"model\": \"Aqua\",\n  \"color\": \"White\",\n  \"vehicleType\": \"CAR\"\n}", "options": { "raw": { "language": "json" } } }, "url": "{{driverBaseUrl}}/api/vehicles" },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Status is 201', () => pm.response.to.have.status(201));", "const body = pm.response.json();", "pm.environment.set('vehicleId', body.id);"] } }]
+        },
+        {
+          "name": "09 Search Eligible Drivers",
+          "request": { "method": "GET", "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{passengerToken}}", "type": "string" }] }, "url": "{{driverBaseUrl}}/api/drivers/eligible?serviceArea={{serviceArea}}" },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Status is 200', () => pm.response.to.have.status(200));", "const body = pm.response.json();", "pm.expect(body).to.be.an('array').that.is.not.empty;"] } }]
+        },
+        {
+          "name": "10 Create Ride",
+          "request": { "method": "POST", "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{passengerToken}}", "type": "string" }] }, "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"passengerId\": \"{{passengerId}}\",\n  \"pickupLocation\": \"Colombo Fort\",\n  \"destinationLocation\": \"Bambalapitiya\",\n  \"serviceArea\": \"{{serviceArea}}\"\n}", "options": { "raw": { "language": "json" } } }, "url": "{{rideBaseUrl}}/api/rides" },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Status is 201', () => pm.response.to.have.status(201));", "const body = pm.response.json();", "pm.environment.set('rideId', body.id);"] } }]
+        },
+        {
+          "name": "11 Assign Ride",
+          "request": { "method": "POST", "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{passengerToken}}", "type": "string" }] }, "url": "{{rideBaseUrl}}/api/rides/{{rideId}}/assign" },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Status is 200', () => pm.response.to.have.status(200));", "const body = pm.response.json();", "pm.expect(body.status).to.eql('ASSIGNED');", "pm.expect(body.driverId).to.eql(pm.environment.get('driverProfileId'));"] } }]
+        },
+        {
+          "name": "12 Driver Accept",
+          "request": { "method": "POST", "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{driverToken}}", "type": "string" }] }, "url": "{{rideBaseUrl}}/api/rides/{{rideId}}/accept" },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Status is 200', () => pm.response.to.have.status(200));", "pm.expect(pm.response.json().status).to.eql('ACCEPTED');"] } }]
+        },
+        {
+          "name": "13 Driver Start",
+          "request": { "method": "POST", "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{driverToken}}", "type": "string" }] }, "url": "{{rideBaseUrl}}/api/rides/{{rideId}}/start" },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Status is 200', () => pm.response.to.have.status(200));", "pm.expect(pm.response.json().status).to.eql('IN_PROGRESS');"] } }]
+        },
+        {
+          "name": "14 Driver Complete with Payment",
+          "request": { "method": "POST", "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{driverToken}}", "type": "string" }] }, "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"distanceKm\": 12.5,\n  \"paymentMethod\": \"CARD\"\n}", "options": { "raw": { "language": "json" } } }, "url": "{{rideBaseUrl}}/api/rides/{{rideId}}/complete-with-payment" },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Status is 200', () => pm.response.to.have.status(200));", "const body = pm.response.json();", "pm.expect(body.status).to.eql('COMPLETED');", "pm.expect(Number(body.finalFare)).to.be.above(0);", "pm.expect(body.paymentId).to.be.a('string').and.not.empty;", "pm.environment.set('paymentId', body.paymentId);"] } }]
+        },
+        {
+          "name": "15 Passenger Get Payment",
+          "request": { "method": "GET", "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{passengerToken}}", "type": "string" }] }, "url": "{{fareBaseUrl}}/api/payments/{{paymentId}}" },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Status is 200', () => pm.response.to.have.status(200));", "const body = pm.response.json();", "pm.expect(body.id).to.eql(pm.environment.get('paymentId'));", "pm.expect(body.passengerId).to.eql(pm.environment.get('passengerId'));"] } }]
+        },
+        {
+          "name": "16 Verify Completed Ride",
+          "request": { "method": "GET", "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{passengerToken}}", "type": "string" }] }, "url": "{{rideBaseUrl}}/api/rides/{{rideId}}" },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Status is 200', () => pm.response.to.have.status(200));", "const body = pm.response.json();", "pm.expect(body.status).to.eql('COMPLETED');", "pm.expect(Number(body.finalFare)).to.be.above(0);", "pm.expect(body.paymentId).to.eql(pm.environment.get('paymentId'));"] } }]
+        }
+      ]
+    }
+  ]
+}
