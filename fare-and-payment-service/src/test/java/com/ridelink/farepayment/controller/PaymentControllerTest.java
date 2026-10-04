@@ -26,21 +26,25 @@ import com.ridelink.farepayment.exception.InvalidPaymentStateException;
 import com.ridelink.farepayment.exception.PaymentNotFoundException;
 import com.ridelink.farepayment.model.PaymentMethod;
 import com.ridelink.farepayment.model.PaymentStatus;
+import com.ridelink.farepayment.security.FarePaymentAuthorizationService;
 import com.ridelink.farepayment.service.PaymentService;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
+import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultActions;
 
 @WebMvcTest(PaymentController.class)
+@AutoConfigureMockMvc(addFilters = false)
 class PaymentControllerTest {
     @Autowired MockMvc mvc;
     @Autowired ObjectMapper mapper;
     @MockitoBean PaymentService service;
+    @MockitoBean FarePaymentAuthorizationService authorizationService;
 
     @Test void validCreateReturns201() throws Exception {
         when(service.createPayment(any())).thenReturn(pendingResponse());

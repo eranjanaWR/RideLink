@@ -3,6 +3,7 @@ package com.ridelink.ride.integration.farepayment;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.content;
+import static org.springframework.test.web.client.match.MockRestRequestMatchers.header;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.method;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withException;
@@ -19,15 +20,21 @@ import java.io.IOException;
 import java.math.BigDecimal;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.client.MockRestServiceServer;
 import org.springframework.web.client.RestClient;
 
+@ExtendWith(OutputCaptureExtension.class)
 class FarePaymentServiceClientTest {
+    private static final String TEST_INTERNAL_SERVICE_KEY = "test-only-internal-service-key";
+
     private MockRestServiceServer server;
     private FarePaymentServiceClient client;
 
@@ -35,7 +42,10 @@ class FarePaymentServiceClientTest {
     void setUp() {
         RestClient.Builder builder = RestClient.builder();
         server = MockRestServiceServer.bindTo(builder).build();
-        client = new FarePaymentServiceClient(builder, "http://fare-payment.test");
+        client = new FarePaymentServiceClient(
+                builder,
+                "http://fare-payment.test",
+                TEST_INTERNAL_SERVICE_KEY);
     }
 
     @Test
@@ -95,6 +105,9 @@ class FarePaymentServiceClientTest {
         expectFinalFarePost(withStatus(HttpStatus.CONFLICT));
         server.expect(requestTo("http://fare-payment.test/api/fares/final/ride/ride-1"))
                 .andExpect(method(HttpMethod.GET))
+                .andExpect(header("X-Internal-Service-Key", TEST_INTERNAL_SERVICE_KEY))
+                .andExpect(request -> assertThat(request.getHeaders())
+                        .doesNotContainKey("Authorization"))
                 .andRespond(withSuccess(finalFareJson("ride-1", "12.50", "1150.00"),
                         MediaType.APPLICATION_JSON));
 
@@ -107,6 +120,9 @@ class FarePaymentServiceClientTest {
     void malformedExistingFinalFareIsRejected() {
         expectFinalFarePost(withStatus(HttpStatus.CONFLICT));
         server.expect(requestTo("http://fare-payment.test/api/fares/final/ride/ride-1"))
+                .andExpect(header("X-Internal-Service-Key", TEST_INTERNAL_SERVICE_KEY))
+                .andExpect(request -> assertThat(request.getHeaders())
+                        .doesNotContainKey("Authorization"))
                 .andRespond(withSuccess("{}", MediaType.APPLICATION_JSON));
         assertThatThrownBy(() -> client.obtainFinalFare("ride-1", money("12.50")))
                 .isInstanceOf(InvalidFarePaymentResponseException.class);
@@ -264,9 +280,24 @@ class FarePaymentServiceClientTest {
     void missingPaymentAfterConflictMapsToInvalidResponse() {
         expectPaymentPost(PaymentMethod.CARD, withStatus(HttpStatus.CONFLICT));
         server.expect(requestTo("http://fare-payment.test/api/payments/ride/ride-1"))
+                .andExpect(header("X-Internal-Service-Key", TEST_INTERNAL_SERVICE_KEY))
+                .andExpect(request -> assertThat(request.getHeaders())
+                        .doesNotContainKey("Authorization"))
                 .andRespond(withStatus(HttpStatus.NOT_FOUND));
         assertThatThrownBy(() -> obtainCardPayment())
                 .isInstanceOf(InvalidFarePaymentResponseException.class);
+    }
+
+    @Test
+    void doesNotLogInternalServiceKey(CapturedOutput output) {
+        expectFinalFarePost(withSuccess(
+                finalFareJson("ride-1", "12.50", "1150.00"),
+                MediaType.APPLICATION_JSON));
+
+        client.obtainFinalFare("ride-1", money("12.50"));
+
+        assertThat(output).doesNotContain(TEST_INTERNAL_SERVICE_KEY);
+        server.verify();
     }
 
     private PaymentResponse obtainCardPayment() {
@@ -277,6 +308,9 @@ class FarePaymentServiceClientTest {
     private void expectFinalFarePost(org.springframework.test.web.client.ResponseCreator response) {
         server.expect(requestTo("http://fare-payment.test/api/fares/final"))
                 .andExpect(method(HttpMethod.POST))
+                .andExpect(header("X-Internal-Service-Key", TEST_INTERNAL_SERVICE_KEY))
+                .andExpect(request -> assertThat(request.getHeaders())
+                        .doesNotContainKey("Authorization"))
                 .andExpect(content().contentType(MediaType.APPLICATION_JSON))
                 .andExpect(content().json("""
                         {"rideId":"ride-1","distanceKm":12.50}
@@ -290,6 +324,9 @@ class FarePaymentServiceClientTest {
     ) {
         server.expect(requestTo("http://fare-payment.test/api/payments"))
                 .andExpect(method(HttpMethod.POST))
+                .andExpect(header("X-Internal-Service-Key", TEST_INTERNAL_SERVICE_KEY))
+                .andExpect(request -> assertThat(request.getHeaders())
+                        .doesNotContainKey("Authorization"))
                 .andExpect(content().contentType(MediaType.APPLICATION_JSON))
                 .andExpect(content().json("""
                         {"rideId":"ride-1","passengerId":"passenger-1","amount":1150.00,"method":"%s"}
@@ -300,6 +337,9 @@ class FarePaymentServiceClientTest {
     private void expectPaymentGet(String body) {
         server.expect(requestTo("http://fare-payment.test/api/payments/ride/ride-1"))
                 .andExpect(method(HttpMethod.GET))
+                .andExpect(header("X-Internal-Service-Key", TEST_INTERNAL_SERVICE_KEY))
+                .andExpect(request -> assertThat(request.getHeaders())
+                        .doesNotContainKey("Authorization"))
                 .andRespond(withSuccess(body, MediaType.APPLICATION_JSON));
     }
 
