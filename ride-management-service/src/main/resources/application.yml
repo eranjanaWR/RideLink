@@ -14,3 +14,7 @@ services:
     base-url: ${DRIVER_SERVICE_URL:http://localhost:8082}
   fare-payment:
     base-url: ${FARE_PAYMENT_SERVICE_URL:http://localhost:8084}
+
+security:
+  internal:
+    service-key: ${INTERNAL_SERVICE_KEY:}
