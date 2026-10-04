@@ -21,19 +21,25 @@ import org.springframework.web.client.RestClientResponseException;
 
 @Component
 public class FarePaymentServiceClient {
+    private static final String INTERNAL_SERVICE_HEADER = "X-Internal-Service-Key";
+
     private final RestClient restClient;
+    private final String internalServiceKey;
 
     public FarePaymentServiceClient(
             RestClient.Builder restClientBuilder,
-            @Value("${services.fare-payment.base-url}") String farePaymentServiceBaseUrl
+            @Value("${services.fare-payment.base-url}") String farePaymentServiceBaseUrl,
+            @Value("${security.internal.service-key}") String internalServiceKey
     ) {
         this.restClient = restClientBuilder.baseUrl(farePaymentServiceBaseUrl).build();
+        this.internalServiceKey = internalServiceKey;
     }
 
     public FinalFareResponse obtainFinalFare(String rideId, BigDecimal distanceKm) {
         try {
             FinalFareResponse response = restClient.post()
                     .uri("/api/fares/final")
+                    .header(INTERNAL_SERVICE_HEADER, internalServiceKey)
                     .contentType(MediaType.APPLICATION_JSON)
                     .body(new FinalFareRequest(rideId, distanceKm))
                     .retrieve()
@@ -60,6 +66,7 @@ public class FarePaymentServiceClient {
         try {
             PaymentResponse response = restClient.post()
                     .uri("/api/payments")
+                    .header(INTERNAL_SERVICE_HEADER, internalServiceKey)
                     .contentType(MediaType.APPLICATION_JSON)
                     .body(new CreatePaymentRequest(rideId, passengerId, amount, method))
                     .retrieve()
@@ -83,6 +90,7 @@ public class FarePaymentServiceClient {
                     .uri(uriBuilder -> uriBuilder
                             .path("/api/fares/final/ride/{rideId}")
                             .build(rideId))
+                    .header(INTERNAL_SERVICE_HEADER, internalServiceKey)
                     .retrieve()
                     .body(FinalFareResponse.class);
             return validateFinalFare(response, rideId, distanceKm);
@@ -106,6 +114,7 @@ public class FarePaymentServiceClient {
                     .uri(uriBuilder -> uriBuilder
                             .path("/api/payments/ride/{rideId}")
                             .build(rideId))
+                    .header(INTERNAL_SERVICE_HEADER, internalServiceKey)
                     .retrieve()
                     .body(PaymentResponse.class);
             validatePaymentStructure(response);

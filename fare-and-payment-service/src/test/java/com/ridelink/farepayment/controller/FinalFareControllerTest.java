@@ -18,21 +18,25 @@ import com.ridelink.farepayment.dto.FinalFareResponse;
 import com.ridelink.farepayment.exception.DuplicateFinalFareException;
 import com.ridelink.farepayment.exception.FinalFareNotFoundException;
 import com.ridelink.farepayment.exception.InvalidFinalFareException;
+import com.ridelink.farepayment.security.FarePaymentAuthorizationService;
 import com.ridelink.farepayment.service.FinalFareService;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
+import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultActions;
 
 @WebMvcTest(FinalFareController.class)
+@AutoConfigureMockMvc(addFilters = false)
 class FinalFareControllerTest {
     @Autowired MockMvc mvc;
     @Autowired ObjectMapper mapper;
     @MockitoBean FinalFareService service;
+    @MockitoBean FarePaymentAuthorizationService authorizationService;
 
     private FinalFareResponse response() {
         return new FinalFareResponse("fare-123", "ride-123", new BigDecimal("12.50"),

@@ -16,6 +16,7 @@ import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
+import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
@@ -24,9 +25,11 @@ import com.ridelink.drivervehicle.dto.CreateVehicleRequest;
 import com.ridelink.drivervehicle.dto.VehicleResponse;
 import com.ridelink.drivervehicle.exception.DuplicateVehicleRegistrationException;
 import com.ridelink.drivervehicle.model.VehicleType;
+import com.ridelink.drivervehicle.security.AuthorizationService;
 import com.ridelink.drivervehicle.service.VehicleService;
 
 @WebMvcTest(VehicleController.class)
+@AutoConfigureMockMvc(addFilters = false)
 class VehicleControllerTest {
 
     @Autowired
@@ -34,6 +37,9 @@ class VehicleControllerTest {
 
     @MockitoBean
     private VehicleService service;
+
+    @MockitoBean
+    private AuthorizationService authorizationService;
 
     @Test
     void createReturnsCreated() throws Exception {
