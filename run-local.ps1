@@ -18,7 +18,8 @@ $RequiredVariables = @(
     'DRIVER_MONGODB_URI',
     'RIDE_MONGODB_URI',
     'FARE_PAYMENT_MONGODB_URI',
-    'JWT_SECRET'
+    'JWT_SECRET',
+    'INTERNAL_SERVICE_KEY'
 )
 
 if (Test-Path -LiteralPath $PreferredEnvironmentFile -PathType Leaf) {
@@ -151,6 +152,7 @@ $IsolatedEnvironmentNames = @(
     'FARE_PAYMENT_MONGODB_URI',
     'PAYMENT_MONGODB_URI',
     'JWT_SECRET',
+    'INTERNAL_SERVICE_KEY',
     'ACCOUNT_PORT',
     'DRIVER_PORT',
     'RIDE_PORT',
@@ -262,6 +264,8 @@ try {
         -LogName 'driver.log' `
         -Environment @{
             MONGODB_URI = $Configuration['DRIVER_MONGODB_URI']
+            JWT_SECRET = $Configuration['JWT_SECRET']
+            INTERNAL_SERVICE_KEY = $Configuration['INTERNAL_SERVICE_KEY']
             SERVER_PORT = $Configuration['DRIVER_PORT']
         }
 
@@ -271,6 +275,8 @@ try {
         -LogName 'fare-payment.log' `
         -Environment @{
             MONGODB_URI = $Configuration['FARE_PAYMENT_MONGODB_URI']
+            JWT_SECRET = $Configuration['JWT_SECRET']
+            INTERNAL_SERVICE_KEY = $Configuration['INTERNAL_SERVICE_KEY']
             SERVER_PORT = $Configuration['PAYMENT_PORT']
         }
 
@@ -280,6 +286,8 @@ try {
         -LogName 'ride.log' `
         -Environment @{
             MONGODB_URI = $Configuration['RIDE_MONGODB_URI']
+            JWT_SECRET = $Configuration['JWT_SECRET']
+            INTERNAL_SERVICE_KEY = $Configuration['INTERNAL_SERVICE_KEY']
             SERVER_PORT = $Configuration['RIDE_PORT']
             DRIVER_SERVICE_URL = "http://localhost:$($Configuration['DRIVER_PORT'])"
             FARE_PAYMENT_SERVICE_URL = "http://localhost:$($Configuration['PAYMENT_PORT'])"

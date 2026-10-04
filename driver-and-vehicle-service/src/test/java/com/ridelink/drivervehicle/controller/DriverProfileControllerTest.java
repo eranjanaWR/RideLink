@@ -14,6 +14,7 @@ import java.time.LocalDateTime;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
+import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
@@ -24,9 +25,11 @@ import com.ridelink.drivervehicle.dto.UpdateDriverAvailabilityRequest;
 import com.ridelink.drivervehicle.dto.UpdateDriverLocationRequest;
 import com.ridelink.drivervehicle.exception.DriverProfileNotFoundException;
 import com.ridelink.drivervehicle.model.DriverAvailabilityStatus;
+import com.ridelink.drivervehicle.security.AuthorizationService;
 import com.ridelink.drivervehicle.service.DriverProfileService;
 
 @WebMvcTest(DriverProfileController.class)
+@AutoConfigureMockMvc(addFilters = false)
 class DriverProfileControllerTest {
 
     @Autowired
@@ -34,6 +37,9 @@ class DriverProfileControllerTest {
 
     @MockitoBean
     private DriverProfileService service;
+
+    @MockitoBean
+    private AuthorizationService authorizationService;
 
     @Test
     void createReturnsCreated() throws Exception {
