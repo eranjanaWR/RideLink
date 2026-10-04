@@ -4,17 +4,22 @@ import com.ridelink.ride.dto.CreateRideRequest;
 import com.ridelink.ride.dto.CompleteRideWithPaymentRequest;
 import com.ridelink.ride.dto.RideResponse;
 import com.ridelink.ride.exception.ApiErrorResponse;
+import com.ridelink.ride.security.AuthenticatedUser;
+import com.ridelink.ride.security.RideAuthorizationService;
 import com.ridelink.ride.service.RideService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import java.net.URI;
 import java.util.List;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -25,19 +30,25 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("/api/rides")
 @Tag(name = "Rides", description = "Create, retrieve, assign, and manage the lifecycle of RideLink rides")
+@SecurityRequirement(name = "bearerAuth")
 public class RideController {
 
     private final RideService rideService;
+    private final RideAuthorizationService authorizationService;
 
-    public RideController(RideService rideService) {
+    public RideController(
+            RideService rideService,
+            RideAuthorizationService authorizationService
+    ) {
         this.rideService = rideService;
+        this.authorizationService = authorizationService;
     }
 
     @PostMapping
     @Operation(
             summary = "Create a ride request",
-            description = "Creates a ride in REQUESTED state. passengerId is an external Account Service identifier; "
-                    + "no Account Service database lookup occurs. Creation does not assign a driver or calculate a fare."
+            description = "PASSENGER may create only for their JWT subject; ADMIN may create on behalf of a passenger. "
+                    + "Creates a REQUESTED ride without assigning a driver or calculating a fare."
     )
     @ApiResponses({
             @ApiResponse(responseCode = "201", description = "Ride request created"),
@@ -47,7 +58,11 @@ public class RideController {
                     content = @Content(schema = @Schema(implementation = ApiErrorResponse.class))
             )
     })
-    public ResponseEntity<RideResponse> createRide(@Valid @RequestBody CreateRideRequest request) {
+    public ResponseEntity<RideResponse> createRide(
+            @AuthenticationPrincipal AuthenticatedUser user,
+            @Valid @RequestBody CreateRideRequest request
+    ) {
+        authorizationService.requirePassengerOrAdminForCreate(user, request.passengerId());
         RideResponse response = rideService.createRide(request);
         return ResponseEntity.created(URI.create("/api/rides/" + response.id())).body(response);
     }
@@ -55,7 +70,8 @@ public class RideController {
     @PostMapping("/{rideId}/assign")
     @Operation(
             summary = "Assign an eligible driver",
-            description = "Assigns a driver only when the ride is REQUESTED. The Ride Service queries Driver & Vehicle "
+            description = "The owning PASSENGER or ADMIN may assign. Assigns only when the ride is REQUESTED. "
+                    + "The Ride Service queries Driver & Vehicle "
                     + "Service using the ride's stored serviceArea, sorts eligible drivers by driverId, and selects the "
                     + "first result. Distance ranking is not implemented. The selected driver is marked UNAVAILABLE "
                     + "before the ASSIGNED ride is saved. If saving fails, restoring availability is best-effort; this "
@@ -84,14 +100,19 @@ public class RideController {
                     content = @Content(schema = @Schema(implementation = ApiErrorResponse.class))
             )
     })
-    public ResponseEntity<RideResponse> assignDriver(@PathVariable String rideId) {
+    public ResponseEntity<RideResponse> assignDriver(
+            Authentication authentication,
+            @PathVariable String rideId
+    ) {
+        authorizationService.requirePassengerOwnerOrAdmin(authentication, rideId);
         return ResponseEntity.ok(rideService.assignDriver(rideId));
     }
 
     @PostMapping("/{rideId}/accept")
     @Operation(
             summary = "Accept an assigned ride",
-            description = "Transitions a ride from ASSIGNED to ACCEPTED. The driver remains UNAVAILABLE; no additional "
+            description = "The assigned DRIVER or ADMIN may accept. Transitions from ASSIGNED to ACCEPTED. "
+                    + "The driver remains UNAVAILABLE; no additional "
                     + "Driver Service availability request is made."
     )
     @ApiResponses({
@@ -107,14 +128,19 @@ public class RideController {
                     content = @Content(schema = @Schema(implementation = ApiErrorResponse.class))
             )
     })
-    public ResponseEntity<RideResponse> acceptRide(@PathVariable String rideId) {
+    public ResponseEntity<RideResponse> acceptRide(
+            Authentication authentication,
+            @PathVariable String rideId
+    ) {
+        authorizationService.requireAssignedDriverOrAdmin(authentication, rideId);
         return ResponseEntity.ok(rideService.acceptRide(rideId));
     }
 
     @PostMapping("/{rideId}/start")
     @Operation(
             summary = "Start an accepted ride",
-            description = "Transitions a ride from ACCEPTED to IN_PROGRESS. The driver remains UNAVAILABLE; no "
+            description = "The assigned DRIVER or ADMIN may start. Transitions from ACCEPTED to IN_PROGRESS. "
+                    + "The driver remains UNAVAILABLE; no "
                     + "additional Driver Service availability request is made."
     )
     @ApiResponses({
@@ -130,14 +156,19 @@ public class RideController {
                     content = @Content(schema = @Schema(implementation = ApiErrorResponse.class))
             )
     })
-    public ResponseEntity<RideResponse> startRide(@PathVariable String rideId) {
+    public ResponseEntity<RideResponse> startRide(
+            Authentication authentication,
+            @PathVariable String rideId
+    ) {
+        authorizationService.requireAssignedDriverOrAdmin(authentication, rideId);
         return ResponseEntity.ok(rideService.startRide(rideId));
     }
 
     @PostMapping("/{rideId}/complete")
     @Operation(
             summary = "Complete an in-progress ride",
-            description = "Marks the assigned driver AVAILABLE, then transitions the ride from IN_PROGRESS to "
+            description = "The assigned DRIVER or ADMIN may complete. Marks the assigned driver AVAILABLE, then "
+                    + "transitions the ride from IN_PROGRESS to "
                     + "COMPLETED. Completion does not calculate a final fare or process payment."
     )
     @ApiResponses({
@@ -163,14 +194,19 @@ public class RideController {
                     content = @Content(schema = @Schema(implementation = ApiErrorResponse.class))
             )
     })
-    public ResponseEntity<RideResponse> completeRide(@PathVariable String rideId) {
+    public ResponseEntity<RideResponse> completeRide(
+            Authentication authentication,
+            @PathVariable String rideId
+    ) {
+        authorizationService.requireAssignedDriverOrAdmin(authentication, rideId);
         return ResponseEntity.ok(rideService.completeRide(rideId));
     }
 
     @PostMapping("/{rideId}/complete-with-payment")
     @Operation(
             summary = "Complete a ride with a simulated payment",
-            description = "For an IN_PROGRESS ride, obtains or reuses a final fare from Fare & Payment Service, "
+            description = "The assigned DRIVER or ADMIN may complete with payment. For an IN_PROGRESS ride, obtains "
+                    + "or reuses a final fare from Fare & Payment Service, "
                     + "creates or reuses a compatible PENDING simulated payment whose amount comes from that final "
                     + "fare, releases the driver, and completes the ride. Safe retries may reuse an existing final-fare "
                     + "or payment record; no distributed transaction is provided."
@@ -209,16 +245,19 @@ public class RideController {
             )
     })
     public ResponseEntity<RideResponse> completeRideWithPayment(
+            Authentication authentication,
             @PathVariable String rideId,
             @Valid @RequestBody CompleteRideWithPaymentRequest request
     ) {
+        authorizationService.requireAssignedDriverOrAdmin(authentication, rideId);
         return ResponseEntity.ok(rideService.completeRideWithPayment(rideId, request));
     }
 
     @PostMapping("/{rideId}/cancel")
     @Operation(
             summary = "Cancel a ride",
-            description = "Transitions REQUESTED, ASSIGNED, or ACCEPTED rides to CANCELLED. Cancellation preserves "
+            description = "The owning PASSENGER, assigned DRIVER, or ADMIN may cancel when lifecycle rules allow. "
+                    + "Transitions REQUESTED, ASSIGNED, or ACCEPTED rides to CANCELLED. Cancellation preserves "
                     + "the assigned driver and earlier lifecycle timestamps. Cancelling an ASSIGNED or ACCEPTED ride "
                     + "first marks its driver AVAILABLE; cancelling a REQUESTED ride makes no Driver Service call."
     )
@@ -245,12 +284,19 @@ public class RideController {
                     content = @Content(schema = @Schema(implementation = ApiErrorResponse.class))
             )
     })
-    public ResponseEntity<RideResponse> cancelRide(@PathVariable String rideId) {
+    public ResponseEntity<RideResponse> cancelRide(
+            Authentication authentication,
+            @PathVariable String rideId
+    ) {
+        authorizationService.requireCancelAccess(authentication, rideId);
         return ResponseEntity.ok(rideService.cancelRide(rideId));
     }
 
     @GetMapping("/{rideId}")
-    @Operation(summary = "Get a ride by ID", description = "Returns one persisted ride request by its Ride Service ID.")
+    @Operation(
+            summary = "Get a ride by ID",
+            description = "Available to the owning PASSENGER, assigned DRIVER, or ADMIN."
+    )
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Ride found"),
             @ApiResponse(
@@ -259,15 +305,18 @@ public class RideController {
                     content = @Content(schema = @Schema(implementation = ApiErrorResponse.class))
             )
     })
-    public ResponseEntity<RideResponse> getRideById(@PathVariable String rideId) {
+    public ResponseEntity<RideResponse> getRideById(
+            Authentication authentication,
+            @PathVariable String rideId
+    ) {
+        authorizationService.requireRideViewer(authentication, rideId);
         return ResponseEntity.ok(rideService.getRideById(rideId));
     }
 
     @GetMapping("/passenger/{passengerId}")
     @Operation(
             summary = "Get rides by passenger",
-            description = "Returns rides for an external Account Service passenger identifier. No Account Service "
-                    + "database lookup occurs."
+            description = "Available to the matching PASSENGER or ADMIN. No Account Service database lookup occurs."
     )
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Ride list returned"),
@@ -277,7 +326,11 @@ public class RideController {
                     content = @Content(schema = @Schema(implementation = ApiErrorResponse.class))
             )
     })
-    public ResponseEntity<List<RideResponse>> getRidesByPassengerId(@PathVariable String passengerId) {
+    public ResponseEntity<List<RideResponse>> getRidesByPassengerId(
+            @AuthenticationPrincipal AuthenticatedUser user,
+            @PathVariable String passengerId
+    ) {
+        authorizationService.requirePassengerListAccess(user, passengerId);
         return ResponseEntity.ok(rideService.getRidesByPassengerId(passengerId));
     }
 }
