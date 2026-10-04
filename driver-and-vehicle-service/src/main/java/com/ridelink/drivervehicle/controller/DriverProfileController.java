@@ -2,6 +2,8 @@ package com.ridelink.drivervehicle.controller;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PatchMapping;
@@ -17,6 +19,8 @@ import com.ridelink.drivervehicle.dto.UpdateDriverAvailabilityRequest;
 import com.ridelink.drivervehicle.dto.UpdateDriverLocationRequest;
 import com.ridelink.drivervehicle.dto.UpdateDriverProfileRequest;
 import com.ridelink.drivervehicle.exception.ApiErrorResponse;
+import com.ridelink.drivervehicle.security.AuthenticatedUser;
+import com.ridelink.drivervehicle.security.AuthorizationService;
 import com.ridelink.drivervehicle.service.DriverProfileService;
 
 import io.swagger.v3.oas.annotations.Operation;
@@ -24,18 +28,24 @@ import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 
 @RestController
 @RequestMapping("/api/drivers")
 @Tag(name = "Driver Profiles", description = "Create and manage operational driver profiles")
+@SecurityRequirement(name = "bearerAuth")
 public class DriverProfileController {
 
     private final DriverProfileService service;
+    private final AuthorizationService authorizationService;
 
-    public DriverProfileController(DriverProfileService service) {
+    public DriverProfileController(
+            DriverProfileService service,
+            AuthorizationService authorizationService) {
         this.service = service;
+        this.authorizationService = authorizationService;
     }
 
     @PostMapping
@@ -54,7 +64,9 @@ public class DriverProfileController {
                     content = @Content(schema = @Schema(implementation = ApiErrorResponse.class)))
     })
     public ResponseEntity<DriverProfileResponse> create(
+            @AuthenticationPrincipal AuthenticatedUser user,
             @Valid @RequestBody CreateDriverProfileRequest request) {
+        authorizationService.requireDriverOrAdminForAccount(user, request.accountId());
         return ResponseEntity.status(HttpStatus.CREATED).body(service.create(request));
     }
 
@@ -69,7 +81,10 @@ public class DriverProfileController {
                     description = "Driver profile not found",
                     content = @Content(schema = @Schema(implementation = ApiErrorResponse.class)))
     })
-    public ResponseEntity<DriverProfileResponse> getById(@PathVariable String driverId) {
+    public ResponseEntity<DriverProfileResponse> getById(
+            @AuthenticationPrincipal AuthenticatedUser user,
+            @PathVariable String driverId) {
+        authorizationService.requireDriverProfileOwnerOrAdmin(user, driverId);
         return ResponseEntity.ok(service.getById(driverId));
     }
 
@@ -84,7 +99,10 @@ public class DriverProfileController {
                     description = "Driver profile not found",
                     content = @Content(schema = @Schema(implementation = ApiErrorResponse.class)))
     })
-    public ResponseEntity<DriverProfileResponse> getByAccountId(@PathVariable String accountId) {
+    public ResponseEntity<DriverProfileResponse> getByAccountId(
+            @AuthenticationPrincipal AuthenticatedUser user,
+            @PathVariable String accountId) {
+        authorizationService.requireAccountOwnerOrAdmin(user, accountId);
         return ResponseEntity.ok(service.getByAccountId(accountId));
     }
 
@@ -104,15 +122,21 @@ public class DriverProfileController {
                     content = @Content(schema = @Schema(implementation = ApiErrorResponse.class)))
     })
     public ResponseEntity<DriverProfileResponse> update(
+            @AuthenticationPrincipal AuthenticatedUser user,
             @PathVariable String driverId,
             @Valid @RequestBody UpdateDriverProfileRequest request) {
+        authorizationService.requireDriverProfileOwnerOrAdmin(user, driverId);
         return ResponseEntity.ok(service.update(driverId, request));
     }
 
     @PatchMapping("/{driverId}/availability")
     @Operation(
             summary = "Update driver availability",
-            description = "Sets an existing driver profile to AVAILABLE or UNAVAILABLE without changing other profile details.")
+            description = "Sets an existing driver profile to AVAILABLE or UNAVAILABLE. Accepts the owner DRIVER or ADMIN JWT, or trusted Ride Service authentication using X-Internal-Service-Key.",
+            security = {
+                    @SecurityRequirement(name = "bearerAuth"),
+                    @SecurityRequirement(name = "internalServiceKey")
+            })
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Driver availability updated"),
             @ApiResponse(
@@ -129,8 +153,12 @@ public class DriverProfileController {
                     content = @Content(schema = @Schema(implementation = ApiErrorResponse.class)))
     })
     public ResponseEntity<DriverProfileResponse> updateAvailability(
+            Authentication authentication,
             @PathVariable String driverId,
             @Valid @RequestBody UpdateDriverAvailabilityRequest request) {
+        authorizationService.requireDriverOwnerAdminOrInternal(
+                authentication,
+                driverId);
         return ResponseEntity.ok(service.updateAvailability(driverId, request));
     }
 
@@ -154,8 +182,10 @@ public class DriverProfileController {
                     content = @Content(schema = @Schema(implementation = ApiErrorResponse.class)))
     })
     public ResponseEntity<DriverProfileResponse> updateLocation(
+            @AuthenticationPrincipal AuthenticatedUser user,
             @PathVariable String driverId,
             @Valid @RequestBody UpdateDriverLocationRequest request) {
+        authorizationService.requireDriverProfileOwnerOrAdmin(user, driverId);
         return ResponseEntity.ok(service.updateLocation(driverId, request));
     }
 }

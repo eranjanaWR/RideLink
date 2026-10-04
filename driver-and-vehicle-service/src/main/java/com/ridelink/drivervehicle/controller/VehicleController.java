@@ -4,6 +4,7 @@ import java.util.List;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -17,6 +18,8 @@ import com.ridelink.drivervehicle.dto.CreateVehicleRequest;
 import com.ridelink.drivervehicle.dto.UpdateVehicleRequest;
 import com.ridelink.drivervehicle.dto.VehicleResponse;
 import com.ridelink.drivervehicle.exception.ApiErrorResponse;
+import com.ridelink.drivervehicle.security.AuthenticatedUser;
+import com.ridelink.drivervehicle.security.AuthorizationService;
 import com.ridelink.drivervehicle.service.VehicleService;
 
 import io.swagger.v3.oas.annotations.Operation;
@@ -24,18 +27,24 @@ import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 
 @RestController
 @RequestMapping("/api/vehicles")
 @Tag(name = "Vehicles", description = "Manage vehicles belonging to RideLink driver profiles")
+@SecurityRequirement(name = "bearerAuth")
 public class VehicleController {
 
     private final VehicleService service;
+    private final AuthorizationService authorizationService;
 
-    public VehicleController(VehicleService service) {
+    public VehicleController(
+            VehicleService service,
+            AuthorizationService authorizationService) {
         this.service = service;
+        this.authorizationService = authorizationService;
     }
 
     @PostMapping
@@ -58,7 +67,9 @@ public class VehicleController {
                     content = @Content(schema = @Schema(implementation = ApiErrorResponse.class)))
     })
     public ResponseEntity<VehicleResponse> create(
+            @AuthenticationPrincipal AuthenticatedUser user,
             @Valid @RequestBody CreateVehicleRequest request) {
+        authorizationService.requireDriverProfileOwnerOrAdmin(user, request.driverId());
         return ResponseEntity.status(HttpStatus.CREATED).body(service.create(request));
     }
 
@@ -73,7 +84,10 @@ public class VehicleController {
                     description = "Vehicle not found",
                     content = @Content(schema = @Schema(implementation = ApiErrorResponse.class)))
     })
-    public ResponseEntity<VehicleResponse> getById(@PathVariable String vehicleId) {
+    public ResponseEntity<VehicleResponse> getById(
+            @AuthenticationPrincipal AuthenticatedUser user,
+            @PathVariable String vehicleId) {
+        authorizationService.requireVehicleOwnerOrAdmin(user, vehicleId);
         return ResponseEntity.ok(service.getById(vehicleId));
     }
 
@@ -88,7 +102,10 @@ public class VehicleController {
                     description = "Driver profile not found",
                     content = @Content(schema = @Schema(implementation = ApiErrorResponse.class)))
     })
-    public ResponseEntity<List<VehicleResponse>> getByDriverId(@PathVariable String driverId) {
+    public ResponseEntity<List<VehicleResponse>> getByDriverId(
+            @AuthenticationPrincipal AuthenticatedUser user,
+            @PathVariable String driverId) {
+        authorizationService.requireDriverProfileOwnerOrAdmin(user, driverId);
         return ResponseEntity.ok(service.getByDriverId(driverId));
     }
 
@@ -112,8 +129,10 @@ public class VehicleController {
                     content = @Content(schema = @Schema(implementation = ApiErrorResponse.class)))
     })
     public ResponseEntity<VehicleResponse> update(
+            @AuthenticationPrincipal AuthenticatedUser user,
             @PathVariable String vehicleId,
             @Valid @RequestBody UpdateVehicleRequest request) {
+        authorizationService.requireVehicleOwnerOrAdmin(user, vehicleId);
         return ResponseEntity.ok(service.update(vehicleId, request));
     }
 
@@ -126,7 +145,10 @@ public class VehicleController {
                     description = "Vehicle not found",
                     content = @Content(schema = @Schema(implementation = ApiErrorResponse.class)))
     })
-    public ResponseEntity<Void> delete(@PathVariable String vehicleId) {
+    public ResponseEntity<Void> delete(
+            @AuthenticationPrincipal AuthenticatedUser user,
+            @PathVariable String vehicleId) {
+        authorizationService.requireVehicleOwnerOrAdmin(user, vehicleId);
         service.delete(vehicleId);
         return ResponseEntity.noContent().build();
     }

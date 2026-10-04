@@ -19,13 +19,18 @@ import org.springframework.web.client.RestClientResponseException;
 @Component
 public class DriverServiceClient {
 
+    private static final String INTERNAL_SERVICE_HEADER = "X-Internal-Service-Key";
+
     private final RestClient restClient;
+    private final String internalServiceKey;
 
     public DriverServiceClient(
             RestClient.Builder restClientBuilder,
-            @Value("${services.driver.base-url}") String driverServiceBaseUrl
+            @Value("${services.driver.base-url}") String driverServiceBaseUrl,
+            @Value("${security.internal.service-key}") String internalServiceKey
     ) {
         this.restClient = restClientBuilder.baseUrl(driverServiceBaseUrl).build();
+        this.internalServiceKey = internalServiceKey;
     }
 
     public List<EligibleDriverResponse> getEligibleDrivers(String serviceArea) {
@@ -35,6 +40,7 @@ public class DriverServiceClient {
                             .path("/api/drivers/eligible")
                             .queryParam("serviceArea", serviceArea)
                             .build())
+                    .header(INTERNAL_SERVICE_HEADER, internalServiceKey)
                     .retrieve()
                     .body(EligibleDriverResponse[].class);
 
@@ -65,6 +71,7 @@ public class DriverServiceClient {
                     .uri(uriBuilder -> uriBuilder
                             .path("/api/drivers/{driverId}/availability")
                             .build(driverId))
+                    .header(INTERNAL_SERVICE_HEADER, internalServiceKey)
                     .contentType(MediaType.APPLICATION_JSON)
                     .body(new UpdateDriverAvailabilityRequest(availabilityStatus))
                     .retrieve()

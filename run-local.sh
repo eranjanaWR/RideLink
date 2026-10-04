@@ -19,6 +19,7 @@ readonly -a RIDELINK_REQUIRED_VARIABLES=(
   RIDE_MONGODB_URI
   FARE_PAYMENT_MONGODB_URI
   JWT_SECRET
+  INTERNAL_SERVICE_KEY
 )
 
 if [[ -f "${RIDELINK_PREFERRED_ENV_FILE}" ]]; then
@@ -36,7 +37,7 @@ fi
 
 # Ensure validation checks values loaded from the selected file, not inherited values.
 unset ACCOUNT_MONGODB_URI DRIVER_MONGODB_URI RIDE_MONGODB_URI
-unset FARE_PAYMENT_MONGODB_URI PAYMENT_MONGODB_URI JWT_SECRET
+unset FARE_PAYMENT_MONGODB_URI PAYMENT_MONGODB_URI JWT_SECRET INTERNAL_SERVICE_KEY
 unset ACCOUNT_PORT DRIVER_PORT RIDE_PORT PAYMENT_PORT
 
 # The selected file is developer-controlled and uses shell-compatible KEY=value entries.
@@ -181,6 +182,7 @@ start_service() {
       -u FARE_PAYMENT_MONGODB_URI \
       -u PAYMENT_MONGODB_URI \
       -u JWT_SECRET \
+      -u INTERNAL_SERVICE_KEY \
       -u ACCOUNT_PORT \
       -u DRIVER_PORT \
       -u RIDE_PORT \
@@ -213,6 +215,8 @@ start_service \
   'driver-and-vehicle-service' \
   "${RIDELINK_LOG_DIR}/driver.log" \
   "MONGODB_URI=${DRIVER_MONGODB_URI}" \
+  "JWT_SECRET=${JWT_SECRET}" \
+  "INTERNAL_SERVICE_KEY=${INTERNAL_SERVICE_KEY}" \
   "SERVER_PORT=${DRIVER_PORT}"
 
 start_service \
@@ -227,6 +231,7 @@ start_service \
   'ride-management-service' \
   "${RIDELINK_LOG_DIR}/ride.log" \
   "MONGODB_URI=${RIDE_MONGODB_URI}" \
+  "INTERNAL_SERVICE_KEY=${INTERNAL_SERVICE_KEY}" \
   "SERVER_PORT=${RIDE_PORT}" \
   "DRIVER_SERVICE_URL=http://localhost:${DRIVER_PORT}" \
   "FARE_PAYMENT_SERVICE_URL=http://localhost:${PAYMENT_PORT}"

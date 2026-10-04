@@ -8,3 +8,9 @@ spring:
 
 server:
   port: ${SERVER_PORT:8082}
+
+security:
+  jwt:
+    secret: ${JWT_SECRET:dev-only-change-this-secret-to-a-long-random-value}
+  internal:
+    service-key: ${INTERNAL_SERVICE_KEY:}

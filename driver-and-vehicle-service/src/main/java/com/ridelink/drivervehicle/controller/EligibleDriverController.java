@@ -18,6 +18,7 @@ import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
@@ -36,7 +37,11 @@ public class EligibleDriverController {
     @GetMapping("/eligible")
     @Operation(
             summary = "Find eligible drivers",
-            description = "Returns drivers eligible for ride assignment. Eligibility currently requires AVAILABLE status, a case-insensitive matching service area, a simulated location, and at least one registered vehicle. The first vehicle returned for each driver is used. Geographic distance ranking is intentionally not implemented in this version.")
+            description = "Returns drivers eligible for ride assignment. An ACTIVE user JWT or trusted Ride Service X-Internal-Service-Key is required. Eligibility currently requires AVAILABLE status, a case-insensitive matching service area, a simulated location, and at least one registered vehicle. The first vehicle returned for each driver is used. Geographic distance ranking is intentionally not implemented in this version.",
+            security = {
+                    @SecurityRequirement(name = "bearerAuth"),
+                    @SecurityRequirement(name = "internalServiceKey")
+            })
     @ApiResponses({
             @ApiResponse(
                     responseCode = "200",
